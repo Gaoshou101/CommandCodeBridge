@@ -12,7 +12,8 @@
 - 只读身份、余额、套餐、5 小时/周窗口、到期时间及请求数已验证；公开模型目录返回 87 个模型。
 - 真实用量汇总字段为 `totalCount`。插件已修正，并兼容较旧的 `totalRequests`；匿名字段样本位于 `internal/bridge/testdata/account-summary.json`。
 - 当前验证账户套餐为 `individual-goat`；GPT-5.4 Mini 和 Claude Haiku 4.5 返回明确的 `MODEL_NOT_IN_PLAN`，目录可见不能视为账号可用。
-- 免费模型 `inclusionai/ling-3.1-flash:free` 已返回真实完整 SSE；本地 CPA 的 Chat 流/非流调用也已成功。完整三协议、工具往返和 Claude 签名的真实验证仍待完成。
+- 免费模型 `inclusionai/ling-3.1-flash:free` 已在 Windows CPA v8.0.23 完成 6 次真实请求：Chat/Responses 流与非流，以及工具调用和结果回传。共 864 tokens，插件与 CPA 的实际 usage 一致。
+- Claude 原生 Messages、思考签名、图片和 ZDR 的真实验证仍待具备对应权限/能力的模型；已有模拟覆盖不代表真实验证。
 - 免费模型曾触发 429；后续联测应遵守上游冷却，避免快速重复启动整套生成测试。
 - 本机 Python 使用现有 Windows 系统代理，隔离 CPA 需明确设置全局代理。真实测试脚本提供 `--system-proxy`，将该设置仅应用于测试 CPA。
 - 真实 key 和原始账户响应保存在仓库之外，源码与模拟夹具不含该 key。
@@ -28,6 +29,8 @@
 - 模型映射、日志与统计在重启后恢复，恢复后的请求正常记账。
 
 所有异常测试使用本地模拟上游和虚构凭据。
+
+CPA 的失败队列按上游尝试记录；503 换号可能产生多条失败记录。新增断言按实际尝试数核对，未报告 usage 的失败不得虚构 tokens。
 
 ## 持久化优化
 
