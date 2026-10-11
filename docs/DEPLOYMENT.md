@@ -2,15 +2,11 @@
 
 目标 CPAMP 为 `https://cpa.gdp.pw/`，已确认可达。源码与安装包托管至 GitHub，用户自行安装；以下步骤供现场执行，当前尚未在目标服务完成安装。
 
-## v0.2.2 原生认证和额度显示
+## v0.2.3 远程认证和原生额度显示
 
-`0.2.2` 已实现原生认证及 `QuotaProvider`，发布版 `v0.2.1` 暂不包含这两处修复。原生凭证卡片、列表和详情页还需安装 [CPAMP 前端适配](../integrations/cpamp/README.md)；只升级 `.so` 会提供额度接口，但当前 CPAMP 的内置平台白名单不会渲染 CommandCode 额度。
+**同时升级插件动态库和 CPAMP 管理页面**。Release 的 `commandcodebridge_0.2.3_cpamp-web.zip` 包含已构建的 `management.html`，基于 CPAMP `dbf61dd`，现有 Manager Server 可通过 `PANEL_PATH` 指向该文件。Docker 中只读挂载页面目录到 Manager Server 容器，设置容器内绝对路径后重新创建该服务；无需重建服务端镜像。安装示例见 [CPAMP 前端适配](../integrations/cpamp/README.md)。只升级 `.so` 无法让旧页面出现回调输入框或原生额度卡片。
 
-Release 的 `commandcodebridge_0.2.2_cpamp-web.zip` 包含已构建的 `management.html`。现有 CPAMP Manager Server 可通过 `PANEL_PATH` 指向该文件；Docker 中将页面目录只读挂载到 Manager Server 容器，并设置容器内绝对路径后重新创建该容器。无需重建服务端镜像，合并示例见适配文档。当前包基于 CPAMP `dbf61dd`，版本不匹配时应在现场对应源码上应用补丁并构建。
-
-异源 CPAMP 页面或子目录代理可配置 `plugins.configs.commandcodebridge.public_base_url` 为实际公开的 CPA/CPAMP 地址（含子目录，不含 `/v0/management`）。同源根目录代理无需此项。升级后重启 CPA，在「OAuth 登录」重新发起 CommandCodeBridge 认证；不要继续使用旧 state。
-
-官方 CLI 的 redirect 回调会把 key 放在查询参数中。插件回调立即跳转清除这些参数并设置 `no-referrer`，但反向代理的 access log 应隐藏 `/v0/resource/plugins/commandcodebridge/callback` 的查询字符串；手动回退通过受管理鉴权保护的 POST 提交 key，不经过 URL。官网如果限制远程回调，用手动回退完成同一原生认证。
+CommandCode 官方只接受 localhost callback。升级后重启 CPA 并强制刷新面板，在「OAuth 登录」重新开始 CommandCodeBridge 认证，打开官方链接。授权后若 `http://localhost:45879/callback?...` 页面无法连接，这是远程登录的正常步骤；复制地址栏完整 URL 回到 CPAMP「回调 URL」输入框提交，等待凭证保存。无需开放回调端口、SSH 隧道或 `public_base_url`，不要复用旧 state。完整 URL 含 API key，不要分享给其他人。
 
 ## 通过 GitHub 链接安装
 
@@ -31,13 +27,13 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.2`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
+保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.3`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
 
 GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上面的 JSON 链接。若当前面板没有源配置入口，可通过 CPA 配置文件添加。服务器需能访问 `raw.githubusercontent.com`、`api.github.com` 和 GitHub 下载地址；无法访问时检查现有 CPA 全局代理。
 
 ## 手动下载安装包
 
-从 [v0.2.2 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.2) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。
+从 [v0.2.3 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.3) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |

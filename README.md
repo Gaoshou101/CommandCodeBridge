@@ -1,6 +1,6 @@
 # CommandCodeBridge
 
-接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.2`；C ABI 1 / RPC schema 6。
+接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.3`；C ABI 1 / RPC schema 6。
 
 ## 功能
 
@@ -35,7 +35,7 @@
 
 插件不另开端口。页面可公开加载，数据及写操作由 CPA 管理鉴权保护。CPAMP 完整代理模式可选择 `X-Management-Key`；真实 CPAMP 部署需现场验证。
 
-`0.2.2` 修复原生 OAuth 入口的 `failed to generate authorization url`：在 CPAMP「OAuth 登录」选择 CommandCodeBridge，打开链接后点击官方登录。若官网不能回传到远程 CPA，展开手动填写 Studio key。异源面板或子目录代理可设置 `public_base_url` 为实际公开地址（包括代理前缀）。详细步骤与前端适配见 [原生凭证集成说明](integrations/cpamp/README.md)。`v0.2.1` 尚不含此修复，需升级至 `v0.2.2`。
+`0.2.3` 修复远程 CPA 的官方 localhost 回调限制。**同时升级插件和 CPAMP 管理页面**，在「OAuth 登录」选择 CommandCodeBridge，打开官方授权链接；授权后若 localhost 页面无法连接，复制地址栏的完整 URL，返回 CPAMP 的「回调 URL」输入框提交。插件验证当前 state 和 API key 后，由 CPA 保存凭证；无需服务器开放回调端口或 SSH 隧道。详细步骤见 [原生凭证集成说明](integrations/cpamp/README.md)。`v0.2.2` 的远程公开地址回调会被官网拒绝。
 
 Docker 应持久化以下目录，以及现有 CPA auth-dir：
 

@@ -10,6 +10,12 @@ import (
 
 const resourceBase = "/v0/resource/plugins/" + PluginID
 const loginLifetime = 10 * time.Minute
+const officialLoginURL = "https://commandcode.ai/studio/auth/cli"
+const localhostCallbackURL = "http://localhost:45879/callback"
+
+func authorizationURL(state string) string {
+	return officialLoginURL + "?" + url.Values{"callback": {localhostCallbackURL}, "state": {state}, "mode": {"redirect"}}.Encode()
+}
 
 type loginSession struct {
 	expires    time.Time
@@ -44,10 +50,48 @@ func (s *Service) startLogin(raw json.RawMessage) (any, error) {
 	state := id() + id()
 	expires := time.Now().UTC().Add(loginLifetime)
 	s.logins[state] = &loginSession{expires: expires}
-	// CPA's BaseURL points to its internal callback address (often loopback).
-	// Same-origin panels use a relative resource URL; other panels can configure
-	// the public address, including the reverse proxy's subdirectory.
-	return map[string]any{"Provider": Provider, "URL": s.cfg.PublicBaseURL + resourceBase + "/login?state=" + state, "State": state, "ExpiresAt": expires}, nil
+	// CommandCode only accepts loopback callbacks. Like native remote OAuth,
+	// CPAMP submits the browser's final URL through an authenticated POST.
+	return map[string]any{"Provider": Provider, "URL": authorizationURL(state), "State": state, "ExpiresAt": expires}, nil
+}
+
+func (s *Service) completeRedirectLogin(state, redirect, callback string) error {
+	if state == "" || len(redirect) > 16384 {
+		return fail(400, "current login state and full localhost callback URL are required")
+	}
+	u, err := url.Parse(strings.TrimSpace(redirect))
+	if err != nil || u.Scheme != "http" || u.User != nil || u.Fragment != "" || u.Path != "/callback" ||
+		u.Port() != "45879" || (u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1") {
+		return fail(400, "invalid CommandCode localhost callback URL")
+	}
+	q, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return fail(400, "invalid CommandCode callback parameters")
+	}
+	for _, name := range []string{"state", "apiKey", "keyName", "error", "error_description"} {
+		if len(q[name]) > 1 {
+			return fail(400, "ambiguous CommandCode callback parameters")
+		}
+	}
+	if q.Get("state") != state {
+		return fail(400, "callback does not match the current login state")
+	}
+	if q.Get("error") != "" || q.Get("error_description") != "" {
+		return s.denyLogin(state)
+	}
+	return s.completeLogin(state, q.Get("apiKey"), q.Get("keyName"), callback)
+}
+
+func (s *Service) denyLogin(state string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pruneLoginsLocked()
+	session := s.logins[state]
+	if session == nil || session.credential != nil || session.denied {
+		return fail(410, "login expired or already completed")
+	}
+	session.denied = true
+	return nil
 }
 
 func (s *Service) pollLogin(raw json.RawMessage) (any, error) {
@@ -132,14 +176,7 @@ func (s *Service) loginResource(r ManagementRequest) (any, error) {
 	completed := "1"
 	if r.Query.Get("error") != "" {
 		completed = "cancelled"
-		s.mu.Lock()
-		s.pruneLoginsLocked()
-		session := s.logins[state]
-		if session != nil && session.credential == nil {
-			session.denied = true
-		}
-		s.mu.Unlock()
-		if session == nil {
+		if s.denyLogin(state) != nil {
 			completed = "failed"
 		}
 	} else if err := s.completeLogin(state, r.Query.Get("apiKey"), r.Query.Get("keyName"), r.HostCallbackID); err != nil {
@@ -159,5 +196,6 @@ func (s *Service) htmlResource(file string) (any, error) {
 	}
 	auth, _ := ui.ReadFile("ui/cpa-auth.js")
 	b = []byte(strings.ReplaceAll(string(b), "/*__CPA_AUTH__*/", string(auth)))
+	b = []byte(strings.ReplaceAll(string(b), "__LOCALHOST_CALLBACK__", localhostCallbackURL))
 	return ManagementResponse{StatusCode: 200, Headers: http.Header{"Content-Type": {"text/html; charset=utf-8"}, "Cache-Control": {"no-store"}, "Referrer-Policy": {"no-referrer"}, "X-Content-Type-Options": {"nosniff"}}, Body: b}, nil
 }

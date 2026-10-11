@@ -154,7 +154,7 @@ jobs:
           cd "$cpamp_source"
           npm ci --ignore-scripts --workspace apps/web
           npm --workspace apps/web run type-check
-          npm --workspace apps/web run test -- src/features/accounts/components/CommandCodeQuotaCard.test.tsx src/services/api/CommandCodeOAuth.test.ts src/services/api/oauth.test.ts src/features/accounts/components/accountDetail/AccountQuotaTab.test.tsx
+          npm --workspace apps/web run test -- src/features/accounts/components/CommandCodeQuotaCard.test.tsx src/services/api/CommandCodeOAuth.test.ts src/services/api/oauth.test.ts src/features/oauth/OAuthPage.test.tsx src/features/accounts/components/accountDetail/AccountQuotaTab.test.tsx
           npm --workspace apps/web run build
           cd "$GITHUB_WORKSPACE"
           python scripts/package_cpamp.py "$cpamp_source"

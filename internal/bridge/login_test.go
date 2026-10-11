@@ -27,7 +27,7 @@ func TestNativeLogin(t *testing.T) {
 	}
 	login := start()
 	state := str(login["State"])
-	if state == "" || len(state) < 40 || str(login["URL"]) != resourceBase+"/login?state="+state || str(poll(state)["Status"]) != "pending" {
+	if state == "" || len(state) < 40 || str(login["URL"]) != authorizationURL(state) || str(poll(state)["Status"]) != "pending" {
 		t.Fatalf("invalid login start: %+v", login)
 	}
 	if err := s.completeLogin("wrong-state", "fixture-secret-key", "", ""); statusOf(err) != 410 {
@@ -89,8 +89,9 @@ func TestLoginInvalidKeyAndPublicURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	login := v.(map[string]any)
-	if str(login["URL"]) != "https://panel.example/cpa"+resourceBase+"/login?state="+str(login["State"]) {
-		t.Fatal("public login URL lost proxy prefix")
+	u, parseErr := url.Parse(str(login["URL"]))
+	if parseErr != nil || u.Scheme+"://"+u.Host+u.Path != officialLoginURL || u.Query().Get("callback") != localhostCallbackURL || u.Query().Get("mode") != "redirect" || u.Query().Get("state") != str(login["State"]) {
+		t.Fatal("remote CPA must use the official localhost redirect flow")
 	}
 	err = s.completeLogin(str(login["State"]), "fixture-login-key", "", "")
 	if statusOf(err) != 401 || bytes.Contains([]byte(err.Error()), []byte("fixture-login-key")) {
@@ -113,5 +114,59 @@ func TestLoginInvalidKeyAndPublicURL(t *testing.T) {
 		if cfg.validate() == nil {
 			t.Fatalf("unsafe public URL accepted: %s", bad)
 		}
+	}
+}
+
+func TestRemoteLoginCallback(t *testing.T) {
+	s, _, _ := setup(t, quotaReply)
+	start := func() string {
+		v, err := s.startLogin(jsonBytes(map[string]string{"Provider": Provider}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return str(v.(map[string]any)["State"])
+	}
+	state, other := start(), start()
+	redirect := localhostCallbackURL + "?" + url.Values{"state": {state}, "apiKey": {"fixture-remote-key"}, "keyName": {"remote account"}}.Encode()
+	for _, bad := range []string{
+		"https://remote.example/callback?state=" + state + "&apiKey=fixture-remote-key",
+		"http://localhost.evil.example:45879/callback?state=" + state + "&apiKey=fixture-remote-key",
+		"http://key@localhost:45879/callback?state=" + state + "&apiKey=fixture-remote-key",
+		redirect + "#fragment", redirect + "&state=" + other, redirect + "&apiKey=another-key",
+		localhostCallbackURL + "?state=" + other + "&apiKey=fixture-remote-key",
+		localhostCallbackURL + "?state=" + state + "&apiKey=%ZZ",
+		"http://localhost:1455/auth/callback?state=" + state + "&code=codex-code",
+	} {
+		if err := s.completeRedirectLogin(state, bad, ""); statusOf(err) != 400 {
+			t.Fatalf("invalid callback accepted or wrong status: %v", err)
+		}
+	}
+	if err := s.completeRedirectLogin("", redirect, ""); statusOf(err) != 400 {
+		t.Fatal("missing current state accepted")
+	}
+	if err := s.completeRedirectLogin(state, redirect, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.completeRedirectLogin(state, redirect, ""); statusOf(err) != 410 {
+		t.Fatal("callback replay accepted")
+	}
+	v, _ := s.pollLogin(jsonBytes(map[string]string{"State": state}))
+	result := v.(map[string]any)
+	if str(result["Status"]) != "success" || !bytes.Contains(result["Auth"].(map[string]any)["StorageJSON"].([]byte), []byte("fixture-remote-key")) {
+		t.Fatal("remote callback did not deliver credential to CPA")
+	}
+	if err := s.completeRedirectLogin(other, localhostCallbackURL+"?state="+other+"&error=access_denied", ""); err != nil {
+		t.Fatal(err)
+	}
+	v, _ = s.pollLogin(jsonBytes(map[string]string{"State": other}))
+	if str(v.(map[string]any)["Status"]) != "error" {
+		t.Fatal("denied callback stayed pending")
+	}
+	state = start()
+	s.mu.Lock()
+	s.logins[state].expires = time.Now().Add(-time.Second)
+	s.mu.Unlock()
+	if err := s.completeRedirectLogin(state, localhostCallbackURL+"?state="+state+"&apiKey=fixture-remote-key", ""); statusOf(err) != 410 {
+		t.Fatal("expired callback accepted")
 	}
 }

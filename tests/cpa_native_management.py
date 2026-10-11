@@ -20,12 +20,16 @@ args = parser.parse_args()
 with CPAHost(MockUpstream) as host:
     login = host.call('/v0/management/commandcode-auth-url?is_webui=true')
     assert login['status'] == 'ok' and len(login['state']) >= 40, login
-    assert login['url'].startswith('/v0/resource/plugins/commandcodebridge/login?'), login
-    with urllib.request.urlopen(host.base + login['url']) as response:
+    official = urllib.parse.urlparse(login['url'])
+    params = urllib.parse.parse_qs(official.query)
+    assert official.scheme == 'https' and official.netloc == 'commandcode.ai' and official.path == '/studio/auth/cli'
+    assert params['callback'] == ['http://localhost:45879/callback'] and params['state'] == [login['state']] and params['mode'] == ['redirect']
+    with urllib.request.urlopen(host.base + '/v0/resource/plugins/commandcodebridge/login?state=' + login['state']) as response:
         page = response.read().decode()
         assert response.headers['Referrer-Policy'] == 'no-referrer'
         assert 'studio/auth/cli' in page and "searchParams.set('mode','redirect')" in page
         assert '/*__CPA_AUTH__*/' not in page
+        assert '__LOCALHOST_CALLBACK__' not in page and "set('callback','http://localhost:45879/callback')" in page
     status_path = '/v0/management/get-auth-status?state=' + login['state']
     assert host.call(status_path)['status'] == 'wait'
     body = {'state': login['state'], 'api_key': 'fixture-native-login-key'}
@@ -58,10 +62,34 @@ with CPAHost(MockUpstream) as host:
         assert '/login?' in response.url and 'apiKey' not in response.url
     assert host.call('/v0/management/get-auth-status?state=' + browser['state'])['status'] == 'ok'
     host.wait(lambda: len(host.call('/v0/management/auth-files')['files']) == 2, 'browser credential registration')
+    # Remote browser handoff: the official page requires loopback, and the
+    # native panel POSTs the whole callback without ever visiting it on CPA.
+    remote = host.call('/v0/management/commandcode-auth-url')
+    remote_callback = 'http://localhost:45879/callback?' + urllib.parse.urlencode({'state': remote['state'], 'apiKey': 'fixture-remote-login-key', 'keyName': 'remote account'})
+    remote_body = {'state': remote['state'], 'redirect_url': remote_callback}
+    try:
+        urllib.request.urlopen(urllib.request.Request(host.base + API + '/auth/callback', data=json.dumps(remote_body).encode(), headers={'Content-Type': 'application/json'}))
+    except urllib.error.HTTPError as error:
+        assert error.code == 401
+    else:
+        raise AssertionError('Remote callback bypassed management authentication')
+    host.error(API + '/auth/callback', {**remote_body, 'state': 'different-current-state'}, 400)
+    host.error(API + '/auth/callback', {**remote_body, 'redirect_url': remote_callback.replace('localhost:45879', 'remote.example')}, 400)
+    assert host.call('/v0/management/get-auth-status?state=' + remote['state'])['status'] == 'wait'
+    assert host.call(API + '/auth/callback', remote_body)['status'] == 'ok'
+    host.error(API + '/auth/callback', remote_body, 410)
+    assert host.call('/v0/management/get-auth-status?state=' + remote['state'])['status'] == 'ok'
+    host.wait(lambda: len(host.call('/v0/management/auth-files')['files']) == 3, 'remote credential registration')
+    assert 'fixture-remote-login-key' not in json.dumps(host.call('/v0/management/auth-files'))
+    cancelled = host.call('/v0/management/commandcode-auth-url')
+    assert host.call(API + '/auth/callback', {'state': cancelled['state'], 'redirect_url': 'http://localhost:45879/callback?' + urllib.parse.urlencode({'state': cancelled['state'], 'error': 'access_denied'})})['status'] == 'ok'
+    assert host.call('/v0/management/get-auth-status?state=' + cancelled['state'])['status'] == 'error'
     host.restart()
-    assert len(host.call('/v0/management/auth-files')['files']) == 2
-    assert len(host.call(API + '/credentials')['credentials']) == 2
-    print('PASS: native CPA OAuth URL/poll/manual and browser completion, management authentication, credential persistence, QuotaProvider discovery, plan/credits/windows and unknown monthly cap')
+    assert len(host.call('/v0/management/auth-files')['files']) == 3
+    assert len(host.call(API + '/credentials')['credentials']) == 3
+    with open(host.folder / 'cpa.log', encoding='utf-8') as log:
+        assert 'fixture-remote-login-key' not in log.read()
+    print('PASS: native CPA localhost OAuth URL, remote callback POST, state/replay/cancellation/authentication, credential persistence, QuotaProvider discovery, plan/credits/windows and unknown monthly cap')
     if args.serve:
         class PanelProxy(BaseHTTPRequestHandler):
             def log_message(self, *_):

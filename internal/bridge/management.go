@@ -19,7 +19,7 @@ const apiBase = "/v0/management/commandcodebridge"
 
 func (s *Service) registerManagement() any {
 	routes := []map[string]string{}
-	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "credentials", "credentials/usage", "logs", "statistics"}, "POST": {"credentials", "auth/complete", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
+	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "credentials", "credentials/usage", "logs", "statistics"}, "POST": {"credentials", "auth/complete", "auth/callback", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
 		for _, p := range paths {
 			routes = append(routes, map[string]string{"Method": method, "Path": apiBase + "/" + p})
 		}
@@ -102,6 +102,17 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 		} else {
 			e = s.completeLogin(in.State, in.APIKey, in.Label, r.HostCallbackID)
 			value = map[string]bool{"success": e == nil}
+		}
+	case "POST /auth/callback":
+		var in struct {
+			State       string `json:"state"`
+			RedirectURL string `json:"redirect_url"`
+		}
+		if json.Unmarshal(r.Body, &in) != nil {
+			e = fail(400, "invalid login callback request")
+		} else {
+			e = s.completeRedirectLogin(in.State, in.RedirectURL, r.HostCallbackID)
+			value = map[string]string{"status": "ok"}
 		}
 	case "DELETE /credentials":
 		value, e = s.deleteCredential(r.Query.Get("id"))
