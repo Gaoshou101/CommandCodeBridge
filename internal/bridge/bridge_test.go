@@ -169,6 +169,7 @@ func TestProviderAggregationAndNoSecretPersistence(t *testing.T) {
 	if len(s.logs) != 1 || s.logs[0].PromptTokens != 10 || s.logs[0].CachedTokens != 4 || s.logs[0].TTFTMS == nil {
 		t.Fatalf("bad log %+v", s.logs)
 	}
+	s.flushStatistics()
 	for _, name := range []string{"requests.json", "statistics.json", "settings.json"} {
 		b, e := os.ReadFile(filepath.Join(s.config().DataDir, name))
 		if e != nil || strings.Contains(string(b), c.APIKey) {
@@ -400,6 +401,48 @@ func TestUnknownQuotaIsNotZero(t *testing.T) {
 	}
 	if u.Purchased != nil || u.Free != nil || u.Remaining != nil {
 		t.Fatal("missing balance counted as zero")
+	}
+}
+
+func TestAccountSummaryLiveSchema(t *testing.T) {
+	fixture, err := os.ReadFile("testdata/account-summary.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, summary string
+		want          int64
+		available     bool
+	}{
+		{"live response", string(fixture), 12, true},
+		{"live field takes precedence", `{"totalCount":12,"totalRequests":99}`, 12, true},
+		{"legacy response", `{"totalRequests":10}`, 10, true},
+		{"zero is valid", `{"totalCount":0}`, 0, true},
+		{"absent", `{}`, 0, false},
+		{"invalid primary", `{"totalCount":null,"totalRequests":99}`, 0, false},
+		{"fractional", `{"totalCount":1.5}`, 0, false},
+		{"negative", `{"totalCount":-1}`, 0, false},
+		{"overflow", `{"totalCount":9223372036854775808}`, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, c := setup(t, func(path string, in map[string]any) mockReply {
+				if strings.Contains(path, "/summary") {
+					return mockReply{status: 200, body: tc.summary}
+				}
+				return quotaReply(path, in)
+			})
+			u, e := s.credentialUsage(c.ID, "", true)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if tc.available {
+				if u.TotalRequests == nil || *u.TotalRequests != tc.want || contains(u.Unavailable, "summary") {
+					t.Fatalf("wrong summary: %+v", u)
+				}
+			} else if u.TotalRequests != nil || !contains(u.Unavailable, "summary") || u.Status != "partial" {
+				t.Fatalf("invalid counter was accepted: %+v", u)
+			}
+		})
 	}
 }
 func TestCredentialDeleteAndModelUpdates(t *testing.T) {

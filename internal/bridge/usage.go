@@ -3,6 +3,7 @@ package bridge
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"math"
 	"net/url"
 	"sync"
 	"time"
@@ -243,11 +244,19 @@ func (s *Service) fetchUsage(c Credential, callback string, deadline time.Time) 
 			return v, account, summaryErr
 		}
 		v.Unavailable = append(v.Unavailable, "summary")
-	} else if n, ok := numeric(summary["totalRequests"]); ok && n >= 0 {
-		total := int64(n)
-		v.TotalRequests = &total
 	} else {
-		v.Unavailable = append(v.Unavailable, "summary")
+		// The account API reports totalCount. Retain compatibility with older
+		// responses, but never turn an absent or invalid counter into zero.
+		value, present := summary["totalCount"]
+		if !present {
+			value = summary["totalRequests"]
+		}
+		if n, ok := numeric(value); ok && n >= 0 && n < float64(math.MaxInt64) && math.Trunc(n) == n {
+			total := int64(n)
+			v.TotalRequests = &total
+		} else {
+			v.Unavailable = append(v.Unavailable, "summary")
+		}
 	}
 	if len(v.Unavailable) > 0 {
 		v.Status = "partial"
