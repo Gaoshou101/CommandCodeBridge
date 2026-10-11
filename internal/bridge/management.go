@@ -54,6 +54,16 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 		}
 		auth, _ := ui.ReadFile("ui/cpa-auth.js")
 		b = []byte(strings.ReplaceAll(string(b), "/*__CPA_AUTH__*/", string(auth)))
+		for marker, file := range map[string]string{"/*__CPA_STYLE__*/": "ui/console.css", "/*__CPA_CONSOLE__*/": "ui/console.js"} {
+			asset, err := ui.ReadFile(file)
+			if err != nil {
+				return nil, fail(500, "console asset missing")
+			}
+			b = []byte(strings.ReplaceAll(string(b), marker, string(asset)))
+		}
+		icon, _ := ui.ReadFile("ui/commandcode-icon.svg")
+		b = []byte(strings.ReplaceAll(string(b), "/*__COMMANDCODE_ICON__*/", string(icon)))
+		b = []byte(strings.ReplaceAll(string(b), "/*__COMMANDCODE_FAVICON__*/", "data:image/svg+xml;base64,"+base64.StdEncoding.EncodeToString(icon)))
 		return ManagementResponse{StatusCode: 200, Headers: http.Header{"Content-Type": {"text/html; charset=utf-8"}, "Cache-Control": {"no-store"}, "X-Content-Type-Options": {"nosniff"}}, Body: b}, nil
 	}
 	path := strings.TrimPrefix(r.Path, apiBase)
@@ -210,7 +220,12 @@ func (s *Service) editCredential(r ManagementRequest) (any, error) {
 		}
 	}
 	if in.APIKey != nil && strings.TrimSpace(*in.APIKey) != "" {
-		c.APIKey = strings.TrimSpace(*in.APIKey)
+		key := strings.TrimSpace(*in.APIKey)
+		if key != c.APIKey {
+			now := time.Now().UTC()
+			c.KeyUpdatedAt = &now
+		}
+		c.APIKey = key
 	}
 	if len(c.APIKey) < 8 || strings.ContainsAny(c.APIKey, "\r\n\t ") {
 		return nil, fail(400, "invalid API key")
@@ -317,13 +332,19 @@ func (s *Service) refreshModels(callback string) (any, error) {
 				}
 			}
 		}
-		models = append(models, Model{ID: "commandcode/" + up, UpstreamID: up, Name: str(item["name"]), Endpoints: endpoints, ContextLength: number(item["context_length"]), ThinkingMode: mode, Reasoning: ReasoningMapping{Rules: map[string]string{}}})
+		models = append(models, Model{ID: defaultModelAlias(up), UpstreamID: up, Name: str(item["name"]), Endpoints: endpoints, ContextLength: number(item["context_length"]), ThinkingMode: mode, Reasoning: ReasoningMapping{Rules: map[string]string{}}})
 		seen[up] = true
 	}
 	if len(models) == 0 {
 		return nil, fail(502, "catalog returned no supported models")
 	}
 	return map[string]any{"models": models}, nil
+}
+
+// Keep the upstream ID intact for routing, while offering a provider-free
+// client name. Duplicate aliases are rejected by config validation on import.
+func defaultModelAlias(upstream string) string {
+	return upstream[strings.LastIndex(upstream, "/")+1:]
 }
 func (s *Service) testModel(r ManagementRequest) (any, error) {
 	var in struct {

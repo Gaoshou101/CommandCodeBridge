@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-from cpa_e2e import ROOT, free_port
+from cpa_e2e import ROOT, VERSION, free_port
 
 API = "/v0/management/commandcodebridge"
 
@@ -82,7 +82,7 @@ plugins:
             if self.process.poll() is not None:
                 raise AssertionError("CPA exited before plugin became ready")
             try:
-                if self.call(API + "/status")["version"] == "0.1.0":
+                if self.call(API + "/status")["version"] == VERSION:
                     return self
             except (OSError, urllib.error.HTTPError):
                 pass

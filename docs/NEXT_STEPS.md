@@ -4,9 +4,9 @@
 
 ## 当前基线
 
-- 版本：0.1.0；CPA 原生 C ABI 1 / RPC schema 6。
+- 版本：0.2.0；CPA 原生 C ABI 1 / RPC schema 6。
 - 已实现多凭据、优先级、会话重分配、模型目录/别名/思考映射、三种客户端协议、工具/图片、套餐用量、日志统计及中文控制台。
-- 当前验证：19 个 Go 顶层测试、10 个登录适配测试；CPA v8.0.23 在 Linux amd64/arm64、Windows amd64 和 macOS arm64 各通过模拟集成及异常恢复场景。
+- 当前验证：23 个 Go 顶层测试、10 个登录适配测试；CPA v8.0.23 在 Linux amd64/arm64、Windows amd64 和 macOS arm64 各通过模拟集成及异常恢复场景。
 - 四个平台均已完成实际宿主加载与调用，ZIP / SHA256 与构建来源已核验；两个 Linux 包要求 glibc ≥2.34。
 - 真实 CommandCode 账户查询及免费 Ling 模型的 6 次 Chat/Responses、流/非流、工具往返已验证，共 864 tokens，插件与 CPA 记账一致。
 - 用户自行安装；当前交付 GitHub 源码、四平台安装包和部署说明，未修改目标服务。

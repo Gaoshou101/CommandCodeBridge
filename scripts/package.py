@@ -13,7 +13,8 @@ TARGETS = {"linux-amd64": ".so", "linux-arm64": ".so", "windows-amd64": ".dll", 
 parser = argparse.ArgumentParser()
 parser.add_argument("library", type=pathlib.Path)
 parser.add_argument("--target", required=True, choices=TARGETS, help="e.g. linux-amd64")
-parser.add_argument("--version", default="0.1.0")
+source_version = re.search(r'const Version = "([^"]+)"', (ROOT / "internal/bridge/types.go").read_text(encoding="utf-8")).group(1)
+parser.add_argument("--version", default=source_version)
 args = parser.parse_args()
 args.library = args.library.resolve()
 if not args.library.is_file() or args.library.suffix != TARGETS[args.target]:

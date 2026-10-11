@@ -8,3 +8,14 @@ are adapted from ClinePassBridge by xiao-qiu-qiu, commit
 The original copyright and license are retained in LICENSE.
 
 CommandCodeBridge is an independent integration, not an official CommandCode product.
+
+The console's request-log layout is inspired by ClinePassBridge.
+The Command Code icon is sourced from the official website:
+https://commandcode.ai/favicon/2024/safari-pinned-tab.svg
+Command Code brand artwork belongs to its respective owner and is not
+covered by this project's MIT license.
+
+The console palette and sidebar layout reference Command Code Studio.
+Navigation artwork is sourced from the official site (usage, API key,
+taste, billing, and sidebar icons). These brand assets belong to their
+respective owner and are not covered by this project's MIT license.

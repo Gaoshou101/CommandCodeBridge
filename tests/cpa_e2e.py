@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import socket
 import shutil
 import subprocess
@@ -19,6 +20,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+VERSION = re.search(r'const Version = "([^"]+)"', (ROOT / "internal/bridge/types.go").read_text(encoding="utf-8")).group(1)
 requests = []
 authorization_headers = []
 
@@ -46,9 +48,9 @@ class MockUpstream(BaseHTTPRequestHandler):
         if "/billing/credits" in self.path:
             return self.send_json({"credits": {"monthlyCredits": 40, "purchasedCredits": 5, "freeCredits": 0, "planId": "pro"}, "windowLimits": {"fiveHour": {"used": 2, "cap": 5, "resetAt": int(time.time())+3600}, "weekly": {"used": 3, "cap": 10, "resetAt": int(time.time())+86400}}})
         if "/billing/subscriptions" in self.path:
-            return self.send_json({"data": {"planId": "pro", "currentPeriodEnd": "2026-11-01T00:00:00Z"}})
+            return self.send_json({"data": {"planId": "pro", "currentPeriodStart": "2026-10-01T00:00:00Z", "currentPeriodEnd": "2026-11-01T00:00:00Z"}})
         if "/usage/summary" in self.path:
-            return self.send_json({"totalRequests": 12})
+            return self.send_json({"totalCount": 12, "totalMonthlyCredits": 10})
         self.send_json({"error": {"message": "unknown route"}}, 404)
 
     def do_POST(self):
@@ -193,10 +195,11 @@ plugins:
             else:
                 log.seek(0)
                 raise AssertionError("CPA did not load plugin: "+log.read()[:5000])
-            assert status["version"] == "0.1.0"
+            assert status["version"] == VERSION
             credential = call(api+"/credentials", {"label": "测试账号", "api_key": "fixture-upstream-key", "priority": 10})
             cid = credential["id"]
             models = call(api+"/models/refresh", {})["models"]
+            assert [model["id"] for model in models] == ["mock-chat", "mock-claude"]
             models[0]["reasoning_mapping"] = {"enabled": True, "rules": {"low": "high"}}
             call(api+"/models", {"models": models}, "PUT")
             for _ in range(60):
@@ -213,7 +216,7 @@ plugins:
             assert rotation["reset_count"] == 2, rotation
             assert len(list((auth / ".commandcodebridge-affinity-backups").glob("*/*.bak"))) == 2
             count = 0
-            probe = {"model": "commandcode/mock-chat", "messages": [{"role": "user", "content": "priority probe"}]}
+            probe = {"model": "mock-chat", "messages": [{"role": "user", "content": "priority probe"}]}
             call("/v1/chat/completions", probe, management=False)
             assert authorization_headers[-1] == "Bearer fixture-upstream-key"
             count += 1
@@ -232,7 +235,7 @@ plugins:
                     break
                 time.sleep(0.1)
             assert len(commandcode_files) == 1, commandcode_files
-            for model in ("commandcode/mock-chat", "commandcode/mock-claude"):
+            for model in ("mock-chat", "mock-claude"):
                 body = {"model": model, "messages": [{"role": "user", "content": "hello"}], "reasoning_effort": "low"}
                 result = call("/v1/chat/completions", body, management=False)
                 assert result["model"] == model and result["choices"][0]["message"]["content"] == "OK from mock", result
@@ -252,29 +255,29 @@ plugins:
                 assert call("/v1/chat/completions", follow, management=False)["choices"][0]["message"]["content"] == "OK from mock"
                 count += 2
             for stream in (False, True):
-                response = call("/v1/responses", {"model": "commandcode/mock-chat", "input": "hello", "stream": stream}, management=False, stream=stream)
+                response = call("/v1/responses", {"model": "mock-chat", "input": "hello", "stream": stream}, management=False, stream=stream)
                 assert "OK from mock" in json.dumps(response), response
                 if stream:
                     assert "response.completed" in response, response
                 count += 1
             for stream in (False, True):
-                body = {"model": "commandcode/mock-claude", "max_tokens": 64, "thinking": {"type": "adaptive"}, "messages": [{"role": "user", "content": "hello"}], "stream": stream}
+                body = {"model": "mock-claude", "max_tokens": 64, "thinking": {"type": "adaptive"}, "messages": [{"role": "user", "content": "hello"}], "stream": stream}
                 response = call("/v1/messages", body, management=False, stream=stream)
                 assert "fixture-signed-thought" in json.dumps(response), response
                 assert requests[-1][1]["thinking"] == {"type": "adaptive"}, requests[-1]
                 count += 1
                 if not stream:
                     signed_content = response["content"]
-            body = {"model": "commandcode/mock-claude", "max_tokens": 64, "thinking": {"type": "adaptive"}, "messages": [{"role": "user", "content": "hello"}, {"role": "assistant", "content": signed_content}, {"role": "user", "content": "continue"}]}
+            body = {"model": "mock-claude", "max_tokens": 64, "thinking": {"type": "adaptive"}, "messages": [{"role": "user", "content": "hello"}, {"role": "assistant", "content": signed_content}, {"role": "user", "content": "continue"}]}
             call("/v1/messages", body, management=False)
             assert "fixture-signed-thought" in json.dumps(requests[-1][1]["messages"]), requests[-1]
             count += 1
             for stream in (False, True):
-                response = call("/v1/messages", {"model": "commandcode/mock-chat", "max_tokens": 64, "messages": [{"role": "user", "content": "hello"}], "stream": stream}, management=False, stream=stream)
+                response = call("/v1/messages", {"model": "mock-chat", "max_tokens": 64, "messages": [{"role": "user", "content": "hello"}], "stream": stream}, management=False, stream=stream)
                 assert "OK from mock" in json.dumps(response), response
                 assert "message_stop" in response if stream else response["type"] == "message", response
                 count += 1
-            native_body = {"model": "commandcode/mock-claude", "max_tokens": 128, "thinking": {"type": "adaptive"}, "tools": [{"name": "read_file", "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}}}], "messages": [{"role": "user", "content": "read a.txt"}]}
+            native_body = {"model": "mock-claude", "max_tokens": 128, "thinking": {"type": "adaptive"}, "tools": [{"name": "read_file", "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}}}], "messages": [{"role": "user", "content": "read a.txt"}]}
             result = call("/v1/messages", native_body, management=False)
             tool = next(b for b in result["content"] if b["type"] == "tool_use")
             assert tool["input"] == {"path": "a.txt"}, result
@@ -283,24 +286,27 @@ plugins:
             result = call("/v1/messages", {**native_body, "stream": True}, management=False, stream=True)
             assert "input_json_delta" in result and "fixture-signed-thought" in result and "message_stop" in result, result
             image = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "fixture-base64-image"}}
-            call("/v1/messages", {"model": "commandcode/mock-claude", "max_tokens": 64, "messages": [{"role": "user", "content": [image, {"type": "text", "text": "describe"}]}]}, management=False)
+            call("/v1/messages", {"model": "mock-claude", "max_tokens": 64, "messages": [{"role": "user", "content": [image, {"type": "text", "text": "describe"}]}]}, management=False)
             assert requests[-1][1]["messages"][0]["content"][0] == image
             count += 4
             response_tools = [{"type": "function", "name": "read_file", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}]
-            result = call("/v1/responses", {"model": "commandcode/mock-chat", "input": "read a.txt", "tools": response_tools}, management=False)
+            result = call("/v1/responses", {"model": "mock-chat", "input": "read a.txt", "tools": response_tools}, management=False)
             function = next(b for b in result["output"] if b["type"] == "function_call")
             assert json.loads(function["arguments"]) == {"path": "a.txt"}, result
-            result = call("/v1/responses", {"model": "commandcode/mock-chat", "input": [function, {"type": "function_call_output", "call_id": function["call_id"], "output": "file content"}], "tools": response_tools}, management=False)
+            result = call("/v1/responses", {"model": "mock-chat", "input": [function, {"type": "function_call_output", "call_id": function["call_id"], "output": "file content"}], "tools": response_tools}, management=False)
             assert "OK from mock" in json.dumps(result), result
             count += 2
             for stream in (False, True):
-                response = call("/v1/messages", {"model": "commandcode/mock-claude", "max_tokens": 64, "messages": [{"role": "user", "content": "hello"}], "stream": stream}, management=False, stream=stream)
+                response = call("/v1/messages", {"model": "mock-claude", "max_tokens": 64, "messages": [{"role": "user", "content": "hello"}], "stream": stream}, management=False, stream=stream)
                 assert "OK from mock" in json.dumps(response), response
                 if stream:
                     assert "message_stop" in response, response
                 count += 1
             usage = call(api+"/credentials/usage?id="+cid+"&refresh=1")
             assert usage["remaining_credits"] == 45 and len(usage["windows"]) == 2, usage
+            assert usage["monthly_used_credits"] == 10, usage
+            credential_health = next(c["health"] for c in call(api+"/credentials")["credentials"] if c["id"] == cid)
+            assert credential_health["status"] == "healthy", credential_health
             assert "fixture-upstream-key" not in json.dumps(call(api+"/credentials"))
             for _ in range(50):
                 stats = call(api+"/statistics")
@@ -321,23 +327,30 @@ plugins:
             assert len(cpa_usage) == count, cpa_usage
             assert sum(r["tokens"]["total_tokens"] for r in cpa_usage) == count*13, cpa_usage
             # Error semantics must survive the actual native RPC adapter.
-            error_models = [*models, {**models[0], "id": "commandcode/mock-error", "upstream_id": "mock-error"}]
+            error_models = [*models, {**models[0], "id": "mock-error", "upstream_id": "mock-error"}]
             call(api+"/models", {"models": error_models}, "PUT")
             try:
-                call(api+"/models/test", {"credential_id": cid, "model": "commandcode/mock-error"})
+                call(api+"/models/test", {"credential_id": cid, "model": "mock-error"})
                 raise AssertionError("403 permission error was accepted")
             except urllib.error.HTTPError as error:
                 assert error.code == 403, error.code
             invalid = call(api+"/credentials", {"label": "无效测试密钥", "api_key": "fixture-invalid-key"})
             try:
-                call(api+"/models/test", {"credential_id": invalid["id"], "model": "commandcode/mock-chat"})
+                call(api+"/models/test", {"credential_id": invalid["id"], "model": "mock-chat"})
                 raise AssertionError("401 key error was accepted")
             except urllib.error.HTTPError as error:
                 assert error.code == 401, error.code
+            failed_health = next(c["health"] for c in call(api+"/credentials")["credentials"] if c["id"] == invalid["id"])
+            assert failed_health["status"] == "invalid", failed_health
+            call(api+"/credentials?id="+invalid["id"], {"api_key": "fixture-replacement-key"}, "PUT")
+            replaced_health = next(c["health"] for c in call(api+"/credentials")["credentials"] if c["id"] == invalid["id"])
+            assert not replaced_health.get("last_status"), replaced_health
             call(api+"/credentials?id="+invalid["id"], method="DELETE")
             call(api+"/models", {"models": models}, "PUT")
             console = call("/v0/resource/plugins/commandcodebridge/console", stream=True)
             assert "/*__CPA_AUTH__*/" not in console and "CommandCodeBridgeAuthHeaders" in console
+            assert "/*__CPA_STYLE__*/" not in console and "/*__CPA_CONSOLE__*/" not in console
+            assert "/*__COMMANDCODE_ICON__*/" not in console and "credentialHealth" in console
             print(f"PASS: native CPA plugin, {count} successful requests, Chat/Responses/Messages, streaming, tool roundtrips, images, signed thinking, reasoning mapping, quotas, host accounting, priority, affinity rotation, edit/delete and 401/403 errors", flush=True)
             if serve:
                 print("CONSOLE "+base+"/v0/resource/plugins/commandcodebridge/console", flush=True)

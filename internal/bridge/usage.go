@@ -16,19 +16,22 @@ type UsageWindow struct {
 	ResetAt *time.Time `json:"reset_at"`
 }
 type Usage struct {
-	Status          string        `json:"status"`
-	Error           string        `json:"error,omitempty"`
-	Unavailable     []string      `json:"unavailable"`
-	Plan            string        `json:"plan"`
-	SubscriptionEnd *time.Time    `json:"subscription_end"`
-	Monthly         *float64      `json:"monthly_credits"`
-	Purchased       *float64      `json:"purchased_credits"`
-	Free            *float64      `json:"free_credits"`
-	Remaining       *float64      `json:"remaining_credits"`
-	Windows         []UsageWindow `json:"windows"`
-	TotalRequests   *int64        `json:"account_requests"`
-	UpdatedAt       *time.Time    `json:"updated_at"`
-	CheckedAt       *time.Time    `json:"checked_at"`
+	Status            string        `json:"status"`
+	HTTPStatus        int           `json:"http_status,omitempty"`
+	Error             string        `json:"error,omitempty"`
+	Unavailable       []string      `json:"unavailable"`
+	Plan              string        `json:"plan"`
+	SubscriptionStart *time.Time    `json:"subscription_start"`
+	SubscriptionEnd   *time.Time    `json:"subscription_end"`
+	Monthly           *float64      `json:"monthly_credits"`
+	MonthlyUsed       *float64      `json:"monthly_used_credits"`
+	Purchased         *float64      `json:"purchased_credits"`
+	Free              *float64      `json:"free_credits"`
+	Remaining         *float64      `json:"remaining_credits"`
+	Windows           []UsageWindow `json:"windows"`
+	TotalRequests     *int64        `json:"account_requests"`
+	UpdatedAt         *time.Time    `json:"updated_at"`
+	CheckedAt         *time.Time    `json:"checked_at"`
 }
 type usageCache struct {
 	fingerprint string
@@ -128,6 +131,7 @@ func (s *Service) credentialUsage(cid, callback string, refresh bool) (Usage, er
 		if err != nil {
 			value = old
 			value.Status = "error"
+			value.HTTPStatus = statusOf(err)
 			value.Error = safeError(redactError(err, c.APIKey))
 		} else {
 			// Keep the last known section when only part of the refresh failed.
@@ -137,10 +141,15 @@ func (s *Service) credentialUsage(cid, callback string, refresh bool) (Usage, er
 				value.Windows = old.Windows
 			}
 			if contains(value.Unavailable, "subscription") {
+				value.SubscriptionStart = old.SubscriptionStart
 				value.SubscriptionEnd = old.SubscriptionEnd
+				value.MonthlyUsed = old.MonthlyUsed
 			}
 			if contains(value.Unavailable, "summary") {
 				value.TotalRequests = old.TotalRequests
+				if value.SubscriptionStart != nil && old.SubscriptionStart != nil && value.SubscriptionStart.Equal(*old.SubscriptionStart) {
+					value.MonthlyUsed = old.MonthlyUsed
+				}
 			}
 			if value.Plan == "" {
 				value.Plan = old.Plan
@@ -195,7 +204,7 @@ func (s *Service) fetchUsage(c Credential, callback string, deadline time.Time) 
 		}
 		v.Plan = str(j["planId"])
 		windows := object(credits["windowLimits"])
-		for _, name := range []string{"fiveHour", "weekly"} {
+		for _, name := range []string{"fiveHour", "weekly", "monthly"} {
 			if w := object(windows[name]); w != nil {
 				v.Windows = append(v.Windows, UsageWindow{Name: name, Used: floatField(w, "used"), Cap: floatField(w, "cap"), ResetAt: timestamp(w["resetAt"])})
 			}
@@ -218,7 +227,10 @@ func (s *Service) fetchUsage(c Credential, callback string, deadline time.Time) 
 				v.Plan = plan
 			}
 			v.SubscriptionEnd = timestamp(j["currentPeriodEnd"])
-			since = str(j["currentPeriodStart"])
+			v.SubscriptionStart = timestamp(j["currentPeriodStart"])
+			if v.SubscriptionStart != nil {
+				since = v.SubscriptionStart.Format(time.RFC3339)
+			}
 		} else {
 			v.Unavailable = append(v.Unavailable, "subscription")
 		}
@@ -245,6 +257,11 @@ func (s *Service) fetchUsage(c Credential, callback string, deadline time.Time) 
 		}
 		v.Unavailable = append(v.Unavailable, "summary")
 	} else {
+		// Only label this as the current billing month's usage when the
+		// subscription supplied a valid start for the summary query.
+		if v.SubscriptionStart != nil && (str(summary["periodBasis"]) == "" || str(summary["periodBasis"]) == "subscription") {
+			v.MonthlyUsed = floatField(summary, "totalMonthlyCredits")
+		}
 		// The account API reports totalCount. Retain compatibility with older
 		// responses, but never turn an absent or invalid counter into zero.
 		value, present := summary["totalCount"]

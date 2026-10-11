@@ -21,13 +21,13 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.1.0`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
+保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.0`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
 
 GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上面的 JSON 链接。若当前面板没有源配置入口，可通过 CPA 配置文件添加。服务器需能访问 `raw.githubusercontent.com`、`api.github.com` 和 GitHub 下载地址；无法访问时检查现有 CPA 全局代理。
 
 ## 手动下载安装包
 
-从 [v0.1.0 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.1.0) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。
+从 [v0.2.0 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.0) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |

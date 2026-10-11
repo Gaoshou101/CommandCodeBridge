@@ -14,7 +14,7 @@ import time
 import urllib.error
 import urllib.request
 
-from cpa_e2e import free_port
+from cpa_e2e import VERSION, free_port
 
 SOURCE = "https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json"
 parser = argparse.ArgumentParser()
@@ -93,16 +93,16 @@ plugins:
             assert not plugin["installed"]
             source_id = plugin["source_id"]
             result = call(f"/plugin-store/commandcodebridge/install?source={source_id}", {})
-            assert result["status"] == "installed" and result["version"] == "0.1.0", result
+            assert result["status"] == "installed" and result["version"] == VERSION, result
             installed = pathlib.Path(result["path"])
-            assert installed.is_file() and installed.name.startswith("commandcodebridge-v0.1.0")
+            assert installed.is_file() and installed.name.startswith("commandcodebridge-v" + VERSION)
             digest = hashlib.sha256(installed.read_bytes()).hexdigest()
             stop()
             start(log)
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
                 try:
-                    assert call("/commandcodebridge/status")["version"] == "0.1.0"
+                    assert call("/commandcodebridge/status")["version"] == VERSION
                     break
                 except (OSError, AssertionError, KeyError):
                     time.sleep(0.1)
@@ -110,7 +110,7 @@ plugins:
                 raise AssertionError("Installed plugin did not load after restart")
             listing = call("/plugin-store")
             plugin = next(item for item in listing["plugins"] if item["id"] == "commandcodebridge")
-            assert plugin["installed"] and plugin["installed_version"] == "0.1.0"
+            assert plugin["installed"] and plugin["installed_version"] == VERSION
             assert plugin["registered"] and plugin["effective_enabled"]
             assert hashlib.sha256(installed.read_bytes()).hexdigest() == digest
             print("PASS: anonymous GitHub source, Release selection, checksum verification, install and restart loading")

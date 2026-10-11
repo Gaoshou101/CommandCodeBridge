@@ -324,7 +324,7 @@ func (s *Service) credentials() []map[string]any {
 	defer s.mu.RUnlock()
 	out := []map[string]any{}
 	for _, c := range s.creds {
-		out = append(out, map[string]any{"id": c.ID, "label": c.Label, "disabled": c.Disabled, "priority": c.Priority, "has_key": c.APIKey != "", "usage": usageView(s.usage[c.ID]), "shared_credentials": s.sharedCountLocked(c.ID)})
+		out = append(out, map[string]any{"id": c.ID, "label": c.Label, "disabled": c.Disabled, "priority": c.Priority, "has_key": c.APIKey != "", "usage": usageView(s.usage[c.ID]), "health": s.credentialHealthLocked(c, time.Now()), "shared_credentials": s.sharedCountLocked(c.ID)})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i]["priority"].(int) != out[j]["priority"].(int) {

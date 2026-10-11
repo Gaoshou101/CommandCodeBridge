@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const Version = "0.1.0"
+const Version = "0.2.0"
 const PluginID = "commandcodebridge"
 const Provider = "commandcode"
 
@@ -65,15 +65,16 @@ type ManagementResponse struct {
 	Body       []byte
 }
 type Credential struct {
-	Type          string `json:"type"`
-	ID            string `json:"id"`
-	Label         string `json:"label"`
-	APIKey        string `json:"api_key"`
-	Disabled      bool   `json:"disabled"`
-	Priority      int    `json:"priority"`
-	ModelRevision string `json:"model_revision,omitempty"`
-	RoutingID     string `json:"routing_id,omitempty"`
-	ProxyURL      string `json:"proxy_url,omitempty"`
+	Type          string     `json:"type"`
+	ID            string     `json:"id"`
+	Label         string     `json:"label"`
+	APIKey        string     `json:"api_key"`
+	KeyUpdatedAt  *time.Time `json:"key_updated_at,omitempty"`
+	Disabled      bool       `json:"disabled"`
+	Priority      int        `json:"priority"`
+	ModelRevision string     `json:"model_revision,omitempty"`
+	RoutingID     string     `json:"routing_id,omitempty"`
+	ProxyURL      string     `json:"proxy_url,omitempty"`
 }
 
 func priorityValue(c Credential) int { return c.Priority }

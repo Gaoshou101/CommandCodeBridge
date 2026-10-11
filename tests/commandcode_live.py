@@ -43,7 +43,7 @@ def run(args):
         host.models(selected)
         count = 0
         if args.chat_model:
-            alias = "commandcode/" + args.chat_model
+            alias = args.chat_model.rsplit("/", 1)[-1]
             for stream in (False, True):
                 body = {"model": alias, "messages": [{"role": "user", "content": "Reply only OK."}],
                         "max_tokens": 128, "stream": stream}
@@ -75,7 +75,7 @@ def run(args):
                 print(json.dumps({"check": "tool roundtrip", "status": "PASS"}), flush=True)
         if args.messages_model:
             for stream in (False, True):
-                response = host.call("/v1/messages", {"model": "commandcode/" + args.messages_model,
+                response = host.call("/v1/messages", {"model": args.messages_model.rsplit("/", 1)[-1],
                     "max_tokens": 32, "messages": [{"role": "user", "content": "Reply only OK."}],
                     "stream": stream}, management=False, stream=stream)
                 assert "message_stop" in response if stream else response["type"] == "message" and response["content"]
