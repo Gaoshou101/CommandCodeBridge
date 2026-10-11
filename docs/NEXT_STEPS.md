@@ -10,7 +10,7 @@
 - 四个平台均已完成实际宿主加载与调用，ZIP / SHA256 与构建来源已核验；两个 Linux 包要求 glibc ≥2.34。
 - 真实 CommandCode 账户查询及免费 Ling 模型的 6 次 Chat/Responses、流/非流、工具往返已验证，共 864 tokens，插件与 CPA 记账一致。
 - 用户自行安装；当前交付 GitHub 源码、四平台安装包和部署说明，未修改目标服务。
-- 已建立源码基线和私有仓库 `Gaoshou101/CommandCodeBridge`；没有 `.planning` 状态文件。
+- 已建立源码基线和仓库 `Gaoshou101/CommandCodeBridge`，按用户要求改为公开并提供 GitHub 安装源；没有 `.planning` 状态文件。
 - 已继续实施，最新证据见 [VALIDATION.md](VALIDATION.md)。
 
 ## P0：建立可追踪基线与真实账号验证

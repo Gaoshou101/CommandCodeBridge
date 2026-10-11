@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "id": "commandcodebridge",
+      "name": "CommandCodeBridge",
+      "description": "CommandCode 官方 Provider API：多凭据、模型映射、套餐用量和请求统计。",
+      "author": "CommandCodeBridge contributors",
+      "version": "0.1.0",
+      "repository": "https://github.com/Gaoshou101/CommandCodeBridge",
+      "homepage": "https://github.com/Gaoshou101/CommandCodeBridge",
+      "license": "MIT",
+      "tags": ["commandcode", "provider", "usage"],
+      "install": {"type": "github-release"}
+    }
+  ]
+}

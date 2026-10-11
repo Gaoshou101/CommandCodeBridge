@@ -122,3 +122,22 @@ jobs:
           path: |
             dist/*.zip
             dist/*.sha256
+
+  release-checksums:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: commandcodebridge-*
+          path: dist
+          merge-multiple: true
+      - run: python scripts/checksums.py dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: commandcodebridge-checksums
+          path: dist/checksums.txt
