@@ -19,6 +19,9 @@ args = parser.parse_args()
 args.library = args.library.resolve()
 if not args.library.is_file() or args.library.suffix != TARGETS[args.target]:
     parser.error("library must exist and match the target platform extension")
+helper = args.library.parent / ('commandcodebridge-login.exe' if args.target.startswith('windows-') else 'commandcodebridge-login')
+if not helper.is_file():
+    parser.error("build the matching commandcodebridge-login executable before packaging")
 if not all(c.isalnum() or c in "-._" for c in args.target + args.version):
     parser.error("invalid target or version")
 output = ROOT / "dist"
@@ -44,6 +47,8 @@ manifest = {
     "source_commit": commit,
     "source_dirty": bool(status) if commit is not None and status is not None else None,
     "library_sha256": hashlib.sha256(args.library.read_bytes()).hexdigest(),
+    "login_helper": helper.name,
+    "login_helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
 }
 if args.target.startswith("linux-") and shutil.which("readelf"):
     symbols = subprocess.run(["readelf", "--version-info", str(args.library)], capture_output=True, text=True, check=True).stdout
@@ -52,6 +57,8 @@ if args.target.startswith("linux-") and shutil.which("readelf"):
         manifest["glibc_minimum"] = max(versions, key=lambda value: tuple(int(part) for part in value.split(".")))
 with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
     bundle.write(args.library, args.library.name)
+    bundle.write(helper, helper.name)
+    bundle.write(ROOT / 'scripts/verify_cpamp_panel.py', 'verify_cpamp_panel.py')
     for name in ("README.md", "config.example.yaml", "LICENSE", "NOTICE"):
         bundle.write(ROOT / name, name)
     for name in ("DEPLOYMENT.md", "VALIDATION.md"):
