@@ -17,26 +17,29 @@ import (
 )
 
 type Service struct {
-	mu                              sync.RWMutex
-	editMu                          sync.Mutex
-	host                            HostCall
-	cfg                             Config
-	creds                           map[string]Credential
-	files                           map[string]string
-	revoked                         map[string]bool
-	authDir                         string
-	loaded, stopped, samplerStarted bool
-	stopCh                          chan struct{}
-	active                          sync.WaitGroup
-	streams                         map[string]bool
-	logs                            []LogEntry
-	statistics                      map[string]Counters
-	statisticsEpoch                 uint64
-	storageError                    string
-	usage                           map[string]*usageCache
-	accounts                        map[string]string
-	cooldown                        map[string]time.Time
-	probes                          map[string]bool
+	mu                                           sync.RWMutex
+	editMu                                       sync.Mutex
+	host                                         HostCall
+	cfg                                          Config
+	creds                                        map[string]Credential
+	files                                        map[string]string
+	revoked                                      map[string]bool
+	authDir                                      string
+	loaded, stopped, samplerStarted              bool
+	stopCh                                       chan struct{}
+	active                                       sync.WaitGroup
+	streams                                      map[string]bool
+	logs                                         []LogEntry
+	statistics                                   map[string]Counters
+	statisticsEpoch                              uint64
+	storageError                                 string
+	persistMu                                    sync.Mutex
+	persistDirty, persistRunning, persistWriting bool
+	persistStop, persistDone                     chan struct{}
+	usage                                        map[string]*usageCache
+	accounts                                     map[string]string
+	cooldown                                     map[string]time.Time
+	probes                                       map[string]bool
 }
 
 func NewService() *Service {
@@ -113,6 +116,13 @@ func (s *Service) configure(raw json.RawMessage) error {
 		return fail(409, "changing data_dir requires restarting the plugin")
 	}
 	if s.stopped {
+		if s.persistDone != nil {
+			select {
+			case <-s.persistDone:
+			default:
+				return fail(409, "plugin shutdown is still in progress")
+			}
+		}
 		s.stopped = false
 		s.stopCh = make(chan struct{})
 		s.samplerStarted = false
@@ -134,6 +144,7 @@ func (s *Service) configure(raw json.RawMessage) error {
 	if len(s.logs) > c.LogRetention {
 		s.logs = s.logs[len(s.logs)-c.LogRetention:]
 	}
+	s.startPersistenceLocked()
 	return nil
 }
 func registration() any {
@@ -221,6 +232,7 @@ func (s *Service) shutdown() {
 		s.closeUpstream(stream)
 	}
 	s.active.Wait()
+	s.stopPersistence()
 }
 func (s *Service) modelRegistration() any {
 	models := []any{}

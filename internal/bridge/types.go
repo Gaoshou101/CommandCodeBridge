@@ -16,8 +16,8 @@ const Version = "0.1.0"
 const PluginID = "commandcodebridge"
 const Provider = "commandcode"
 
-// CPA requires both fields even for private, locally built plugins. Release
-// builders can supply the actual source URL with -ldflags -X.
+// CPA requires both fields. Other source repositories can override the URL
+// with -ldflags -X when building.
 var Author = "CommandCodeBridge contributors"
 var Repository = "https://github.com/Gaoshou101/CommandCodeBridge"
 

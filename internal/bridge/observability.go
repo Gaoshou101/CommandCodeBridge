@@ -2,7 +2,6 @@ package bridge
 
 import (
 	"errors"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -141,11 +140,7 @@ func (s *Service) record(entry LogEntry) {
 		}
 		s.statistics[key] = c
 	}
-	if atomicJSON(filepath.Join(s.cfg.DataDir, "requests.json"), s.logs) != nil || atomicJSON(filepath.Join(s.cfg.DataDir, "statistics.json"), s.statistics) != nil {
-		s.storageError = "request statistics persistence failed"
-	} else {
-		s.storageError = ""
-	}
+	s.persistDirty = true
 }
 func contentStarted(j map[string]any) bool {
 	for _, v := range list(j["choices"]) {

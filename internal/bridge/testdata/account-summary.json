@@ -1,0 +1,16 @@
+{
+  "averageCost": 0.02,
+  "completedCount": 10,
+  "failedCount": 2,
+  "periodBasis": "subscription",
+  "successRate": 83.3333333333,
+  "totalCost": 0.24,
+  "totalCount": 12,
+  "totalCredits": 0.24,
+  "totalFreeCredits": 0,
+  "totalMonthlyCredits": 0.24,
+  "totalPurchasedCredits": 0,
+  "totalTokens": 240,
+  "totalTokensIn": 180,
+  "totalTokensOut": 60
+}

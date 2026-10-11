@@ -62,7 +62,7 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 	switch r.Method + " " + path {
 	case "GET /status":
 		s.mu.RLock()
-		value = map[string]any{"version": Version, "models": len(s.cfg.Models), "credentials": len(s.creds), "storage_error": s.storageError}
+		value = map[string]any{"version": Version, "models": len(s.cfg.Models), "credentials": len(s.creds), "storage_error": s.storageError, "storage_pending": s.persistDirty || s.persistWriting}
 		s.mu.RUnlock()
 	case "GET /config":
 		value = s.config()
@@ -154,6 +154,7 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 	case "POST /credentials/clear-affinity":
 		return s.clearAffinity(r)
 	case "POST /statistics/reset":
+		s.persistMu.Lock()
 		s.mu.Lock()
 		old := s.statistics
 		next := map[string]Counters{}
@@ -164,8 +165,10 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 		if e == nil {
 			s.statistics = next
 			s.statisticsEpoch++
+			s.persistDirty = true
 		}
 		s.mu.Unlock()
+		s.persistMu.Unlock()
 		value = map[string]bool{"reset": e == nil}
 	default:
 		return managementJSON(404, map[string]string{"error": "not found"})
