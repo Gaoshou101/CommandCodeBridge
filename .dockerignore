@@ -1,0 +1,6 @@
+.git
+dist
+plugins
+tests
+.github
+*.log

@@ -1,0 +1,15 @@
+/dist/
+/plugins/
+*.so
+*.dll
+*.dylib
+*.h
+coverage.out
+*.log
+__pycache__/
+*.pyc
+/auth/
+/commandcodebridge-data/
+/.env
+/.env.*
+/.credentials/

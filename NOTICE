@@ -1,0 +1,10 @@
+CommandCodeBridge
+
+The C ABI adapter (cmd/commandcodebridge/main.go), SSE completion aggregation
+(internal/bridge/sse.go), session reassignment (internal/bridge/affinity.go),
+and CPA browser login compatibility code and its tests
+are adapted from ClinePassBridge by xiao-qiu-qiu, commit
+7ac0d011fc26c821f27369c0c442f47057a81e8e, licensed under the MIT License.
+The original copyright and license are retained in LICENSE.
+
+CommandCodeBridge is an independent integration, not an official CommandCode product.

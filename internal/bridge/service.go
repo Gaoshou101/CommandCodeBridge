@@ -1,0 +1,370 @@
+package bridge
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"gopkg.in/yaml.v3"
+)
+
+type Service struct {
+	mu                              sync.RWMutex
+	editMu                          sync.Mutex
+	host                            HostCall
+	cfg                             Config
+	creds                           map[string]Credential
+	files                           map[string]string
+	revoked                         map[string]bool
+	authDir                         string
+	loaded, stopped, samplerStarted bool
+	stopCh                          chan struct{}
+	active                          sync.WaitGroup
+	streams                         map[string]bool
+	logs                            []LogEntry
+	statistics                      map[string]Counters
+	statisticsEpoch                 uint64
+	storageError                    string
+	usage                           map[string]*usageCache
+	accounts                        map[string]string
+	cooldown                        map[string]time.Time
+	probes                          map[string]bool
+}
+
+func NewService() *Service {
+	return &Service{cfg: defaultConfig(), creds: map[string]Credential{}, files: map[string]string{}, revoked: map[string]bool{}, stopCh: make(chan struct{}), streams: map[string]bool{}, statistics: map[string]Counters{}, usage: map[string]*usageCache{}, accounts: map[string]string{}, cooldown: map[string]time.Time{}, probes: map[string]bool{}}
+}
+func (s *Service) SetHost(h HostCall) { s.mu.Lock(); s.host = h; s.mu.Unlock() }
+func (s *Service) call(method string, in, out any) error {
+	s.mu.RLock()
+	h := s.host
+	s.mu.RUnlock()
+	if h == nil {
+		return errors.New("host callback is not initialized")
+	}
+	return h(method, in, out)
+}
+func (s *Service) config() Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var c Config
+	_ = json.Unmarshal(jsonBytes(s.cfg), &c)
+	return c
+}
+func id() string {
+	b := make([]byte, 12)
+	if _, e := rand.Read(b); e != nil {
+		panic("random source unavailable")
+	}
+	return hex.EncodeToString(b)
+}
+func atomicJSON(path string, v any) error {
+	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+		return e
+	}
+	b, e := json.MarshalIndent(v, "", "  ")
+	if e != nil {
+		return e
+	}
+	tmp := path + ".tmp-" + id()
+	if e = os.WriteFile(tmp, b, 0600); e != nil {
+		return e
+	}
+	defer os.Remove(tmp)
+	return os.Rename(tmp, path)
+}
+func (s *Service) configure(raw json.RawMessage) error {
+	s.editMu.Lock()
+	defer s.editMu.Unlock()
+	var r struct {
+		ConfigYAML []byte `json:"config_yaml"`
+	}
+	if e := json.Unmarshal(raw, &r); e != nil {
+		return fail(400, "invalid registration request")
+	}
+	c := defaultConfig()
+	if len(r.ConfigYAML) > 0 {
+		if e := yaml.Unmarshal(r.ConfigYAML, &c); e != nil {
+			return fail(400, "invalid plugin YAML")
+		}
+	}
+	if b, e := os.ReadFile(filepath.Join(c.DataDir, "settings.json")); e == nil {
+		if json.Unmarshal(b, &c) != nil {
+			return fail(500, "stored settings are invalid")
+		}
+	}
+	if e := c.validate(); e != nil {
+		return e
+	}
+	if e := os.MkdirAll(c.DataDir, 0700); e != nil {
+		return fail(500, "cannot create plugin data directory")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.loaded && c.DataDir != s.cfg.DataDir {
+		return fail(409, "changing data_dir requires restarting the plugin")
+	}
+	if s.stopped {
+		s.stopped = false
+		s.stopCh = make(chan struct{})
+		s.samplerStarted = false
+	}
+	s.cfg = c
+	if !s.loaded {
+		if b, e := os.ReadFile(filepath.Join(c.DataDir, "requests.json")); e == nil {
+			if json.Unmarshal(b, &s.logs) != nil {
+				return fail(500, "stored request logs are invalid")
+			}
+		}
+		if b, e := os.ReadFile(filepath.Join(c.DataDir, "statistics.json")); e == nil {
+			if json.Unmarshal(b, &s.statistics) != nil {
+				return fail(500, "stored statistics are invalid")
+			}
+		}
+		s.loaded = true
+	}
+	if len(s.logs) > c.LogRetention {
+		s.logs = s.logs[len(s.logs)-c.LogRetention:]
+	}
+	return nil
+}
+func registration() any {
+	return map[string]any{"schema_version": 6, "metadata": map[string]any{"Name": "CommandCodeBridge", "Version": Version, "Author": Author, "GitHubRepository": Repository, "Description": "CommandCode Provider API, credentials, models, usage and request statistics", "ConfigFields": []map[string]string{{"Name": "data_dir", "Type": "string", "Description": "Persistent plugin data directory"}}}, "capabilities": map[string]any{"auth_provider": true, "model_provider": true, "executor": true, "executor_model_scope": "both", "executor_input_formats": []string{"chat-completions"}, "executor_output_formats": []string{"chat-completions", "claude"}, "management_api": true}}
+}
+func (s *Service) Handle(method string, raw json.RawMessage) (any, error) {
+	switch method {
+	case "plugin.register", "plugin.reconfigure":
+		if e := s.configure(raw); e != nil {
+			return nil, e
+		}
+		return registration(), nil
+	case "executor.identifier", "auth.identifier":
+		return map[string]string{"identifier": Provider}, nil
+	case "model.static", "model.for_auth":
+		return s.modelRegistration(), nil
+	case "auth.parse":
+		return s.parseAuth(raw)
+	case "auth.refresh":
+		var r struct{ StorageJSON []byte }
+		if json.Unmarshal(raw, &r) != nil {
+			return nil, fail(400, "invalid auth refresh")
+		}
+		var c Credential
+		if json.Unmarshal(r.StorageJSON, &c) != nil {
+			return nil, fail(401, "invalid stored credential")
+		}
+		s.mu.RLock()
+		current, ok := s.creds[c.ID]
+		revoked := s.revoked[c.ID]
+		name := s.files[c.ID]
+		s.mu.RUnlock()
+		if revoked {
+			return nil, fail(401, "credential removed")
+		}
+		if ok {
+			c = current
+		}
+		return map[string]any{"Auth": authData(c, name), "NextRefreshAfter": time.Now().Add(365 * 24 * time.Hour)}, nil
+	case "auth.login.start", "auth.login.poll":
+		return nil, fail(400, "import a CommandCode Studio API key in the plugin console")
+	case "executor.execute", "executor.execute_stream":
+		var r ExecutorRequest
+		if json.Unmarshal(raw, &r) != nil {
+			return nil, fail(400, "invalid executor request")
+		}
+		return s.execute(r, method == "executor.execute_stream")
+	case "executor.count_tokens":
+		return nil, fail(501, "CommandCode has no exact token counting endpoint")
+	case "executor.http_request":
+		return nil, fail(400, "use the model executor")
+	case "management.register":
+		s.startSampler()
+		return s.registerManagement(), nil
+	case "management.handle":
+		return s.management(raw)
+	case "plugin.quiesce", "plugin.shutdown":
+		s.shutdown()
+		return map[string]any{}, nil
+	default:
+		return nil, fail(400, "unsupported plugin method")
+	}
+}
+func (s *Service) begin() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return fail(503, "plugin is shutting down")
+	}
+	s.active.Add(1)
+	return nil
+}
+func (s *Service) shutdown() {
+	s.mu.Lock()
+	if !s.stopped {
+		s.stopped = true
+		close(s.stopCh)
+	}
+	streams := []string{}
+	for stream := range s.streams {
+		streams = append(streams, stream)
+	}
+	s.mu.Unlock()
+	for _, stream := range streams {
+		s.closeUpstream(stream)
+	}
+	s.active.Wait()
+}
+func (s *Service) modelRegistration() any {
+	models := []any{}
+	for _, m := range s.config().Models {
+		models = append(models, map[string]any{"ID": m.ID, "Name": m.UpstreamID, "Object": "model", "OwnedBy": Provider, "DisplayName": m.Name, "SupportedGenerationMethods": []string{"chat"}, "UserDefined": true})
+	}
+	return map[string]any{"Provider": Provider, "Models": models}
+}
+func (s *Service) model(alias string) (Model, error) {
+	for _, m := range s.config().Models {
+		if m.ID == alias {
+			return m, nil
+		}
+	}
+	return Model{}, fail(404, "model alias is not configured")
+}
+func authData(c Credential, name string) any {
+	if name == "" {
+		name = c.ID + ".json"
+	}
+	return map[string]any{"Provider": Provider, "ID": routingID(c, name), "FileName": name, "Label": c.Label, "Disabled": c.Disabled, "ProxyURL": c.ProxyURL, "StorageJSON": jsonBytes(c), "Metadata": map[string]any{"type": Provider, "priority": c.Priority}, "Attributes": map[string]string{"auth_kind": "api_key"}}
+}
+func (s *Service) parseAuth(raw json.RawMessage) (any, error) {
+	var r struct {
+		Provider, Path, FileName string
+		RawJSON                  []byte
+		Host                     struct{ AuthDir string }
+	}
+	if json.Unmarshal(raw, &r) != nil {
+		return nil, fail(400, "invalid auth input")
+	}
+	var c Credential
+	if json.Unmarshal(r.RawJSON, &c) != nil || c.Type != Provider {
+		return map[string]bool{"Handled": false}, nil
+	}
+	if c.APIKey == "" {
+		return nil, fail(401, "credential has no API key")
+	}
+	if c.ID == "" {
+		c.ID = strings.TrimSuffix(r.FileName, ".json")
+	}
+	if c.ID == "" {
+		return nil, fail(400, "credential has no ID")
+	}
+	if c.Label == "" {
+		c.Label = "CommandCode"
+	}
+	s.mu.Lock()
+	if s.revoked[c.ID] {
+		s.mu.Unlock()
+		return nil, fail(401, "credential removed")
+	}
+	if old, ok := s.creds[c.ID]; ok && (old.APIKey != c.APIKey || old.Disabled != c.Disabled || old.ProxyURL != c.ProxyURL) {
+		delete(s.usage, c.ID)
+		delete(s.accounts, c.ID)
+	}
+	s.creds[c.ID] = c
+	s.files[c.ID] = filepath.Base(r.FileName)
+	if r.Host.AuthDir != "" {
+		s.authDir = r.Host.AuthDir
+	}
+	delete(s.revoked, c.ID)
+	s.mu.Unlock()
+	return map[string]any{"Handled": true, "Auth": authData(c, r.FileName)}, nil
+}
+func (s *Service) credential(r ExecutorRequest) (Credential, error) {
+	var c Credential
+	_ = json.Unmarshal(r.StorageJSON, &c)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if latest, ok := s.creds[c.ID]; ok {
+		c = latest
+	}
+	if c.ID == "" {
+		for _, v := range s.creds {
+			if routingID(v, s.files[v.ID]) == r.AuthID {
+				c = v
+				break
+			}
+		}
+	}
+	if c.Type != Provider || c.APIKey == "" || c.Disabled || s.revoked[c.ID] {
+		return c, fail(401, "credential missing, removed or disabled")
+	}
+	return c, nil
+}
+func (s *Service) credentials() []map[string]any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []map[string]any{}
+	for _, c := range s.creds {
+		out = append(out, map[string]any{"id": c.ID, "label": c.Label, "disabled": c.Disabled, "priority": c.Priority, "has_key": c.APIKey != "", "usage": usageView(s.usage[c.ID]), "shared_credentials": s.sharedCountLocked(c.ID)})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i]["priority"].(int) != out[j]["priority"].(int) {
+			return out[i]["priority"].(int) > out[j]["priority"].(int)
+		}
+		return str(out[i]["id"]) < str(out[j]["id"])
+	})
+	return out
+}
+func (s *Service) sharedCountLocked(cid string) int {
+	account := s.accounts[cid]
+	if account == "" {
+		return 1
+	}
+	n := 0
+	for id, a := range s.accounts {
+		if a == account && !s.creds[id].Disabled {
+			n++
+		}
+	}
+	return n
+}
+func (s *Service) saveConfig(c Config) error {
+	if e := c.validate(); e != nil {
+		return e
+	}
+	old := s.config()
+	if c.DataDir != old.DataDir {
+		return fail(409, "data_dir cannot change at runtime")
+	}
+	if e := atomicJSON(filepath.Join(c.DataDir, "settings.json"), c); e != nil {
+		return fail(500, "settings persistence failed")
+	}
+	s.mu.Lock()
+	s.cfg = c
+	if c.BaseURL != old.BaseURL {
+		s.usage = map[string]*usageCache{}
+		s.accounts = map[string]string{}
+		s.cooldown = map[string]time.Time{}
+		s.probes = map[string]bool{}
+	}
+	creds := []Credential{}
+	for _, v := range s.creds {
+		creds = append(creds, v)
+	}
+	s.mu.Unlock()
+	hash := sha256.Sum256(jsonBytes(c.Models))
+	for _, cred := range creds {
+		cred.ModelRevision = hex.EncodeToString(hash[:])
+		if e := s.saveCredential(cred); e != nil {
+			return fail(500, "settings saved; credential model registration refresh failed")
+		}
+	}
+	return nil
+}
