@@ -86,3 +86,12 @@ Windows 设置 `BRIDGE_LIBRARY` 为实际 `.dll`；macOS 设置为 `.dylib`。�
 ## 部署状态
 
 目标 CPAMP `https://cpa.gdp.pw/` 页面可访问，当前页面要求 Manager Server 管理员密钥，它与 CPA Management Key 不同。用户已提供管理凭据并明确由其自行安装；本次交付源码、四平台安装包及安装/升级/回滚说明，未修改目标服务。现场代理、目录权限和 CPAMP 全链路验收留待用户安装后完成。
+
+## GitHub 链接安装
+
+- 2026-10-11 按用户要求将仓库改为公开，匿名读取仓库、latest Release 和 `checksums.txt` 通过。
+- CPA v8.0.23 要求 ZIP 名称为 `<插件ID>_<版本>_<GOOS>_<GOARCH>.zip`，且 Release 必须含统一 `checksums.txt`。v0.1.0 新增四平台兼容命名别名，与原发布 ZIP 字节一致；九个新增资产的 GitHub SHA256 与本地值一致。
+- 提供公开 `registry.json`，通过 `plugins.store-sources` 加入自定义插件源。当前未登记至官方商店。
+- [CI 38113046358](https://github.com/Gaoshou101/CommandCodeBridge/actions/runs/38113046358) 通过四平台构建/宿主联测及统一校验文件生成。
+- `tests/cpa_store_install.py` 在隔离 Windows CPA v8.0.23 中通过：公开源发现、匿名 Release 获取、选包、校验安装、配置登记、重启后加载和插件状态确认。测试移除 GitHub Token 环境设置，仅使用虚构 CPA 管理密钥，未发模型请求。
+- GitHub 安装器只写入动态库；目标主机的持久化目录、CPAMP 代理及真实凭据仍由用户安装后验收。
