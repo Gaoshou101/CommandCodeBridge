@@ -45,7 +45,7 @@ plugins:
     - {SOURCE}
 ''', encoding="utf-8")
     environment = os.environ.copy()
-    for name in ("GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"):
+    for name in ("GITHUB_TOKEN", "github_token", "GH_TOKEN", "GITHUB_API_TOKEN", "GITSTORE_GIT_TOKEN"):
         environment.pop(name, None)
     process = None
 
