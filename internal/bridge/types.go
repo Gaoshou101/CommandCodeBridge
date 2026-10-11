@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.1"
+const Version = "0.2.2"
 const PluginID = "commandcodebridge"
 const Provider = "commandcode"
 
@@ -95,6 +95,7 @@ type Model struct {
 type Config struct {
 	DataDir             string  `json:"data_dir" yaml:"data_dir"`
 	BaseURL             string  `json:"base_url" yaml:"base_url"`
+	PublicBaseURL       string  `json:"public_base_url,omitempty" yaml:"public_base_url"`
 	Models              []Model `json:"models" yaml:"models"`
 	TimeoutSeconds      int     `json:"timeout_seconds" yaml:"timeout_seconds"`
 	LogRetention        int     `json:"log_retention" yaml:"log_retention"`
@@ -115,6 +116,13 @@ func (c *Config) validate() error {
 		return fail(400, "base_url must be an HTTP(S) origin without credentials or a path")
 	}
 	c.BaseURL = strings.TrimRight(c.BaseURL, "/")
+	if c.PublicBaseURL != "" {
+		publicURL, err := url.Parse(c.PublicBaseURL)
+		if err != nil || publicURL.Host == "" || (publicURL.Scheme != "https" && publicURL.Scheme != "http") || publicURL.User != nil || publicURL.RawQuery != "" || publicURL.Fragment != "" {
+			return fail(400, "public_base_url must be an HTTP(S) URL without credentials, query or fragment")
+		}
+		c.PublicBaseURL = strings.TrimRight(c.PublicBaseURL, "/")
+	}
 	if c.DataDir == "" || c.TimeoutSeconds < 10 || c.TimeoutSeconds > 1800 || c.LogRetention < 10 || c.LogRetention > 10000 || c.MaxResponseBytes < 65536 || c.MaxResponseBytes > 64<<20 || c.UsageRefreshSeconds < 30 || c.UsageRefreshSeconds > 3600 {
 		return fail(400, "invalid data directory, timeout, retention, response limit or refresh interval")
 	}

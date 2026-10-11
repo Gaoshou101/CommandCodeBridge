@@ -40,10 +40,11 @@ type Service struct {
 	accounts                                     map[string]string
 	cooldown                                     map[string]time.Time
 	probes                                       map[string]bool
+	logins                                       map[string]*loginSession
 }
 
 func NewService() *Service {
-	return &Service{cfg: defaultConfig(), creds: map[string]Credential{}, files: map[string]string{}, revoked: map[string]bool{}, stopCh: make(chan struct{}), streams: map[string]bool{}, statistics: map[string]Counters{}, usage: map[string]*usageCache{}, accounts: map[string]string{}, cooldown: map[string]time.Time{}, probes: map[string]bool{}}
+	return &Service{cfg: defaultConfig(), creds: map[string]Credential{}, files: map[string]string{}, revoked: map[string]bool{}, stopCh: make(chan struct{}), streams: map[string]bool{}, statistics: map[string]Counters{}, usage: map[string]*usageCache{}, accounts: map[string]string{}, cooldown: map[string]time.Time{}, probes: map[string]bool{}, logins: map[string]*loginSession{}}
 }
 func (s *Service) SetHost(h HostCall) { s.mu.Lock(); s.host = h; s.mu.Unlock() }
 func (s *Service) call(method string, in, out any) error {
@@ -148,7 +149,7 @@ func (s *Service) configure(raw json.RawMessage) error {
 	return nil
 }
 func registration() any {
-	return map[string]any{"schema_version": 6, "metadata": map[string]any{"Name": "CommandCodeBridge", "Version": Version, "Author": Author, "GitHubRepository": Repository, "Description": "CommandCode Provider API, credentials, models, usage and request statistics", "ConfigFields": []map[string]string{{"Name": "data_dir", "Type": "string", "Description": "Persistent plugin data directory"}}}, "capabilities": map[string]any{"auth_provider": true, "model_provider": true, "executor": true, "executor_model_scope": "both", "executor_input_formats": []string{"chat-completions"}, "executor_output_formats": []string{"chat-completions", "claude"}, "management_api": true}}
+	return map[string]any{"schema_version": 6, "metadata": map[string]any{"Name": "CommandCodeBridge", "Version": Version, "Author": Author, "GitHubRepository": Repository, "Description": "CommandCode Provider API, credentials, models, usage and request statistics", "ConfigFields": []map[string]string{{"Name": "data_dir", "Type": "string", "Description": "Persistent plugin data directory"}, {"Name": "public_base_url", "Type": "string", "Description": "Public CPA/CPAMP URL including any reverse proxy prefix; optional for same-origin panels"}}}, "capabilities": map[string]any{"auth_provider": true, "quota_provider": true, "model_provider": true, "executor": true, "executor_model_scope": "both", "executor_input_formats": []string{"chat-completions"}, "executor_output_formats": []string{"chat-completions", "claude"}, "management_api": true}}
 }
 func (s *Service) Handle(method string, raw json.RawMessage) (any, error) {
 	switch method {
@@ -157,7 +158,7 @@ func (s *Service) Handle(method string, raw json.RawMessage) (any, error) {
 			return nil, e
 		}
 		return registration(), nil
-	case "executor.identifier", "auth.identifier":
+	case "executor.identifier", "auth.identifier", "quota.identifier":
 		return map[string]string{"identifier": Provider}, nil
 	case "model.static", "model.for_auth":
 		return s.modelRegistration(), nil
@@ -184,8 +185,16 @@ func (s *Service) Handle(method string, raw json.RawMessage) (any, error) {
 			c = current
 		}
 		return map[string]any{"Auth": authData(c, name), "NextRefreshAfter": time.Now().Add(365 * 24 * time.Hour)}, nil
-	case "auth.login.start", "auth.login.poll":
-		return nil, fail(400, "import a CommandCode Studio API key in the plugin console")
+	case "auth.login.start":
+		return s.startLogin(raw)
+	case "auth.login.poll":
+		return s.pollLogin(raw)
+	case "quota.describe":
+		return map[string]any{"supported_providers": []string{Provider}, "display_name": "CommandCode", "supports_reset": false}, nil
+	case "quota.fetch":
+		return s.nativeQuota(raw)
+	case "quota.reset":
+		return nil, fail(501, "CommandCode does not support resetting subscription quota")
 	case "executor.execute", "executor.execute_stream":
 		var r ExecutorRequest
 		if json.Unmarshal(raw, &r) != nil {
@@ -223,6 +232,7 @@ func (s *Service) shutdown() {
 		s.stopped = true
 		close(s.stopCh)
 	}
+	clear(s.logins)
 	streams := []string{}
 	for stream := range s.streams {
 		streams = append(streams, stream)

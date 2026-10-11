@@ -35,6 +35,7 @@ jobs:
           tar -xzf CLIProxyAPI_8.0.23_linux_amd64.tar.gz
           cd "$GITHUB_WORKSPACE"
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_e2e.py
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_native_management.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_reliability.py
 
   build:
@@ -91,7 +92,11 @@ jobs:
           go test ./internal/bridge -run TestCredentialDeletion -count=1
           if ($LASTEXITCODE -ne 0) { throw 'Windows credential deletion regression failed' }
           python tests/cpa_e2e.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows native host integration failed' }
+          python tests/cpa_native_management.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows native management integration failed' }
           python tests/cpa_reliability.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows reliability integration failed' }
       - name: ARM64 native host integration
         if: matrix.target == 'linux-arm64' || matrix.target == 'darwin-arm64'
         shell: bash
@@ -117,6 +122,7 @@ jobs:
           export CPA_BINARY="$task_dir/cli-proxy-api"
           export BRIDGE_LIBRARY="$GITHUB_WORKSPACE/dist/commandcodebridge.${{ matrix.extension }}"
           python tests/cpa_e2e.py
+          python tests/cpa_native_management.py
           python tests/cpa_reliability.py
       - uses: actions/upload-artifact@v4
         with:
@@ -125,8 +131,42 @@ jobs:
             dist/*.zip
             dist/*.sha256
 
+  cpamp-web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the pinned CPAMP native quota integration
+        shell: bash
+        env:
+          VERSION: commandcodebridge-integration-dbf61dd
+        run: |
+          cpamp_source="$RUNNER_TEMP/cpamp-source"
+          git clone --filter=blob:none https://github.com/seakee/CPA-Manager-Plus.git "$cpamp_source"
+          git -C "$cpamp_source" checkout dbf61ddf438f399558722df3467355c42af9005d
+          python integrations/cpamp/apply.py "$cpamp_source" --check
+          python integrations/cpamp/apply.py "$cpamp_source"
+          cd "$cpamp_source"
+          npm ci --ignore-scripts --workspace apps/web
+          npm --workspace apps/web run type-check
+          npm --workspace apps/web run test -- src/features/accounts/components/CommandCodeQuotaCard.test.tsx src/services/api/CommandCodeOAuth.test.ts src/services/api/oauth.test.ts src/features/accounts/components/accountDetail/AccountQuotaTab.test.tsx
+          npm --workspace apps/web run build
+          cd "$GITHUB_WORKSPACE"
+          python scripts/package_cpamp.py "$cpamp_source"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: commandcodebridge-cpamp-web
+          path: |
+            dist/*_cpamp-web.zip
+            dist/*_cpamp-web.zip.sha256
+
   release-checksums:
-    needs: build
+    needs: [build, cpamp-web]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -138,7 +178,7 @@ jobs:
           pattern: commandcodebridge-*
           path: dist
           merge-multiple: true
-      - run: python scripts/checksums.py dist
+      - run: python scripts/checksums.py dist --include-cpamp
       - uses: actions/upload-artifact@v4
         with:
           name: commandcodebridge-checksums

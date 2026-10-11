@@ -1,0 +1,32 @@
+.card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--color-border, var(--gray-200));
+  border-radius: 8px;
+  background: var(--color-surface, var(--bg-primary));
+  p { margin: 0; font-size: 12px; color: var(--text-secondary); }
+  small { font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; }
+}
+.compact { padding: 12px; gap: 10px; }
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  strong { overflow-wrap: anywhere; }
+  button { flex-shrink: 0; }
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  &:empty { display: none; }
+  > div { display: grid; gap: 5px; }
+  span { font-size: 11px; color: var(--text-secondary); }
+  strong { font-size: 15px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+}
+.window { display: grid; gap: 7px; }
+.card .error { color: var(--color-danger, #dc2626); }

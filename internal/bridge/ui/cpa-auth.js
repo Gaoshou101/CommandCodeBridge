@@ -7,7 +7,7 @@
   // A reverse proxy may strip its public prefix before CPA renders the page.
   // Resolve it once from the console URL for both API requests and saved logins.
   const apiMeta = document.querySelector('meta[name="cpa-api-base"]');
-  const consolePath = location.pathname.match(/^(.*)\/v(?:0|8)\/resource\/plugins\/commandcodebridge\/console\/?$/);
+  const consolePath = location.pathname.match(/^(.*)\/v(?:0|8)\/resource\/plugins\/commandcodebridge\/(?:console|login)\/?$/);
   const configured = new URL(apiMeta.content, location.origin);
   const apiPath = configured.pathname.match(/\/v(?:0|8)\/management\/commandcodebridge\/?$/);
   if (consolePath && apiPath && configured.origin === location.origin && !configured.username && !configured.password && !configured.search && !configured.hash) {

@@ -7,6 +7,8 @@ plugins:
       enabled: true
       data_dir: /CLIProxyAPI/commandcodebridge-data
       base_url: https://api.commandcode.ai
+      # Optional when OAuth is opened from another origin or a proxy subdirectory.
+      # public_base_url: https://your-cpamp.example/cpa
       timeout_seconds: 600
       usage_refresh_seconds: 60
       log_retention: 1000
