@@ -104,6 +104,7 @@ go test -race ./...
 go vet ./...
 node --test tests/cpa-auth.test.cjs
 CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_e2e.py
+CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_native_management.py
 CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_reliability.py
 CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_benchmark.py --requests 64
 go test ./internal/bridge -run '^$' -bench BenchmarkRecordAtRetention -benchmem

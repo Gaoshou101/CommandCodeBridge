@@ -29,7 +29,9 @@ CPA 原生插件；C ABI 1 / RPC schema 6。官方 Provider API 路线，Go 订�
 
 提供 Linux amd64/arm64、Windows amd64、macOS arm64 ZIP，各附 SHA256 和包内 `BUILD.json`。选择匹配宿主的平台，按照 [部署说明](https://github.com/Gaoshou101/CommandCodeBridge/blob/main/docs/DEPLOYMENT.md) 安装、备份及回滚。Linux 包要求 glibc ≥2.34；Alpine/musl 需另行构建。需要带插件支持的 CPA，已验证 v8.0.23。
 
-仓库已公开。CPA / CPAMP 链接安装使用 [插件源 registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)，Release 提供安装器要求的 `commandcodebridge_0.2.1_<系统>_<架构>.zip` 和 `checksums.txt`。
+仓库已公开。CPA / CPAMP 链接安装使用 [插件源 registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)，Release 提供安装器要求的 `commandcodebridge_0.2.2_<系统>_<架构>.zip` 和 `checksums.txt`。
+
+原生凭证余量显示需同时更新插件和面板。下载 `commandcodebridge_0.2.2_cpamp-web.zip`，解压后通过 Manager Server 的 `PANEL_PATH` 托管 `management.html`；面板基于 CPAMP `dbf61dd`，不同服务端版本请在对应源码上应用补丁构建。
 
 ## 已实现
 
@@ -41,7 +43,7 @@ CPA 原生插件；C ABI 1 / RPC schema 6。官方 Provider API 路线，Go 订�
 
 ## 验证
 
-- Go 回归与竞态检查、go vet、10 个登录适配测试，以及 Windows 凭据文件占用回归。
+- Go 回归与竞态检查、go vet、11 个登录适配测试，以及 Windows 凭据文件占用回归。
 - 四种平台均使用实际 CPA v8.0.23 完成原生宿主集成与异常恢复测试。
 - 真实账户查询及免费 Ling 模型的 6 次 Chat/Responses、流/非流与工具往返通过，共 864 tokens，插件与 CPA 记账一致。
 

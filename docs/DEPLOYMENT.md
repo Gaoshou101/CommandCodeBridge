@@ -6,7 +6,7 @@
 
 `0.2.2` 已实现原生认证及 `QuotaProvider`，发布版 `v0.2.1` 暂不包含这两处修复。原生凭证卡片、列表和详情页还需安装 [CPAMP 前端适配](../integrations/cpamp/README.md)；只升级 `.so` 会提供额度接口，但当前 CPAMP 的内置平台白名单不会渲染 CommandCode 额度。
 
-本地面板包包含已构建的 `management.html`。现有 CPAMP Manager Server 可通过 `PANEL_PATH` 指向该文件；Docker 中将页面目录只读挂载到 Manager Server 容器，并设置容器内绝对路径后重新创建该容器。无需重建服务端镜像，合并示例见适配文档。当前包基于 CPAMP `dbf61dd`，版本不匹配时应在现场对应源码上应用补丁并构建。
+Release 的 `commandcodebridge_0.2.2_cpamp-web.zip` 包含已构建的 `management.html`。现有 CPAMP Manager Server 可通过 `PANEL_PATH` 指向该文件；Docker 中将页面目录只读挂载到 Manager Server 容器，并设置容器内绝对路径后重新创建该容器。无需重建服务端镜像，合并示例见适配文档。当前包基于 CPAMP `dbf61dd`，版本不匹配时应在现场对应源码上应用补丁并构建。
 
 异源 CPAMP 页面或子目录代理可配置 `plugins.configs.commandcodebridge.public_base_url` 为实际公开的 CPA/CPAMP 地址（含子目录，不含 `/v0/management`）。同源根目录代理无需此项。升级后重启 CPA，在「OAuth 登录」重新发起 CommandCodeBridge 认证；不要继续使用旧 state。
 

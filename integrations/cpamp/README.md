@@ -9,8 +9,8 @@ CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加�
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。
-2. 安装匹配平台的 CommandCodeBridge `0.2.2` 动态库并重启 CPA。当前本地交付包为 Linux amd64；发布 CI 会构建其他平台。
-3. 在 CPAMP 源码目录应用补丁并重新构建前端：
+2. 安装匹配平台的 CommandCodeBridge `0.2.2` 动态库并重启 CPA。从 [v0.2.2 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.2) 选择匹配平台 ZIP，并核验 `checksums.txt`。
+3. 面板版本匹配 CPAMP `dbf61dd` 时，直接下载 Release 的 `commandcodebridge_0.2.2_cpamp-web.zip`，使用包内 `management.html`，按下节挂载。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
 
 ```bash
 python /path/to/CommandCodeBridge/integrations/cpamp/apply.py /path/to/CPA-Manager-Plus --check
@@ -26,7 +26,7 @@ npm --workspace apps/web run build
 
 脚本会先验证所有插入点再写入，重复执行不会重复插入。已验证的 CPAMP 源码为 `dbf61ddf438f399558722df3467355c42af9005d`。不同源码版本可能需要调整插入点，脚本会拒绝不匹配的结构。
 
-4. 安装构建产物 `apps/web/dist/index.html`，具体方式见下节。本地 `commandcodebridge_0.2.2_cpamp-web.zip` 提供相同源码基线的已构建 `management.html`、许可证、构建信息和校验值；如当前部署版本不匹配，应在对应源码上应用适配后自行构建。
+4. 安装构建产物 `apps/web/dist/index.html`，具体方式见下节。Release 的 `commandcodebridge_0.2.2_cpamp-web.zip` 提供相同源码基线的已构建 `management.html`、许可证、构建信息和校验值；如当前部署版本不匹配，应在对应源码上应用适配后自行构建。
 5. 刷新面板，在 OAuth 登录选择 CommandCodeBridge，打开原生链接后点击官方登录。若官网不允许向远程地址回传，使用该页面的 Studio API key 手动回退。
 6. 打开原生凭证页，在 CommandCode 卡片点击「刷新额度」。凭证详情的额度 Tab 也可刷新，并复用本次观察。
 
