@@ -9,6 +9,11 @@ const origin = 'https://cpa.example';
 const userAgent = 'CommandCodeBridge auth regression fixture';
 const key = 'fixture-management-key';
 
+test('reuse the saved panel login on the native login page behind a proxy prefix', () => {
+  const context = loadAuth({ login: savedLogin(origin + '/cpa'), consoleURL: origin + '/cpa/v0/resource/plugins/commandcodebridge/login?state=fixture' });
+  assert.equal(context.CommandCodeBridgeAuthHeaders().Authorization, 'Bearer ' + key);
+});
+
 function savedLogin(apiBase = origin, rememberPassword = true) {
   return { state: { apiBase, managementKey: key, rememberPassword }, version: 0 };
 }

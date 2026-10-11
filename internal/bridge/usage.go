@@ -21,6 +21,7 @@ type Usage struct {
 	Error             string        `json:"error,omitempty"`
 	Unavailable       []string      `json:"unavailable"`
 	Plan              string        `json:"plan"`
+	PlanStale         bool          `json:"-"`
 	SubscriptionStart *time.Time    `json:"subscription_start"`
 	SubscriptionEnd   *time.Time    `json:"subscription_end"`
 	Monthly           *float64      `json:"monthly_credits"`
@@ -153,6 +154,7 @@ func (s *Service) credentialUsage(cid, callback string, refresh bool) (Usage, er
 			}
 			if value.Plan == "" {
 				value.Plan = old.Plan
+				value.PlanStale = value.Plan != ""
 			}
 			value.UpdatedAt = &now
 		}

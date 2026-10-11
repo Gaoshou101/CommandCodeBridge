@@ -19,12 +19,12 @@ const apiBase = "/v0/management/commandcodebridge"
 
 func (s *Service) registerManagement() any {
 	routes := []map[string]string{}
-	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "credentials", "credentials/usage", "logs", "statistics"}, "POST": {"credentials", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
+	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "credentials", "credentials/usage", "logs", "statistics"}, "POST": {"credentials", "auth/complete", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
 		for _, p := range paths {
 			routes = append(routes, map[string]string{"Method": method, "Path": apiBase + "/" + p})
 		}
 	}
-	return map[string]any{"routes": routes, "resources": []map[string]string{{"Path": "/console", "Menu": "CommandCodeBridge", "Description": "CommandCode 凭据、模型、套餐用量和日志"}}}
+	return map[string]any{"routes": routes, "resources": []map[string]string{{"Path": "/console", "Menu": "CommandCodeBridge", "Description": "CommandCode 凭据、模型、套餐用量和日志"}, {"Path": "/login"}, {"Path": "/callback"}}}
 }
 func managementJSON(status int, v any) (any, error) {
 	return ManagementResponse{StatusCode: status, Headers: http.Header{"Content-Type": {"application/json; charset=utf-8"}, "Cache-Control": {"no-store"}}, Body: jsonBytes(v)}, nil
@@ -46,6 +46,9 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 	var r ManagementRequest
 	if json.Unmarshal(raw, &r) != nil {
 		return managementJSON(400, map[string]string{"error": "invalid management request"})
+	}
+	if r.Method == "GET" && (r.Path == resourceBase+"/login" || r.Path == resourceBase+"/callback") {
+		return s.loginResource(r)
 	}
 	if r.Method == "GET" && r.Path == "/v0/resource/plugins/"+PluginID+"/console" {
 		b, e := ui.ReadFile("ui/index.html")
@@ -88,6 +91,18 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 		value = s.statisticsView(r)
 	case "POST /credentials", "PUT /credentials":
 		value, e = s.editCredential(r)
+	case "POST /auth/complete":
+		var in struct {
+			State  string `json:"state"`
+			APIKey string `json:"api_key"`
+			Label  string `json:"label"`
+		}
+		if json.Unmarshal(r.Body, &in) != nil {
+			e = fail(400, "invalid login completion request")
+		} else {
+			e = s.completeLogin(in.State, in.APIKey, in.Label, r.HostCallbackID)
+			value = map[string]bool{"success": e == nil}
+		}
 	case "DELETE /credentials":
 		value, e = s.deleteCredential(r.Query.Get("id"))
 	case "POST /models/refresh":
