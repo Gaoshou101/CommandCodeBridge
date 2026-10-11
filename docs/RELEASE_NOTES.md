@@ -6,6 +6,8 @@
 
 提供 Linux amd64/arm64、Windows amd64、macOS arm64 ZIP，各附 SHA256 和包内 `BUILD.json`。选择匹配宿主的平台，按照 [部署说明](https://github.com/Gaoshou101/CommandCodeBridge/blob/main/docs/DEPLOYMENT.md) 安装、备份及回滚。Linux 包要求 glibc ≥2.34；Alpine/musl 需另行构建。需要带插件支持的 CPA，已验证 v8.0.23。
 
+仓库已公开。CPA / CPAMP 链接安装使用 [插件源 registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)，Release 提供安装器要求的 `commandcodebridge_0.1.0_<系统>_<架构>.zip` 和 `checksums.txt`。首版连字符命名的手动下载包仍保留；新增的下划线命名包与原包内容一致。
+
 ## 已实现
 
 - 多 key、优先级、会话重分配、模型目录/别名/思考映射。

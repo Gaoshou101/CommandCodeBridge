@@ -2,26 +2,49 @@
 
 目标 CPAMP 为 `https://cpa.gdp.pw/`，已确认可达。源码与安装包托管至 GitHub，用户自行安装；以下步骤供现场执行，当前尚未在目标服务完成安装。
 
-## 下载安装包
+## 通过 GitHub 链接安装
 
-从 [v0.1.0 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.1.0) 下载对应平台 ZIP 和 `.zip.sha256`。私有仓库需使用有访问权限的 GitHub 账号。
+仓库已公开。CPA v8.0.23 从插件源登记信息解析 GitHub Release，安装时按宿主平台选包并核验 `checksums.txt`，无需 GitHub Token。
+
+插件源链接：
+
+```text
+https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
+```
+
+将它添加到现有 CPA 配置的 `plugins.store-sources`（保留已有源和配置）：
+
+```yaml
+plugins:
+  enabled: true
+  store-sources:
+    - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
+```
+
+保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.1.0`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
+
+GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上面的 JSON 链接。若当前面板没有源配置入口，可通过 CPA 配置文件添加。服务器需能访问 `raw.githubusercontent.com`、`api.github.com` 和 GitHub 下载地址；无法访问时检查现有 CPA 全局代理。
+
+## 手动下载安装包
+
+从 [v0.1.0 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.1.0) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |
-| Linux x64 | `linux-amd64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
-| Linux ARM64 | `linux-arm64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
-| Windows x64 | `windows-amd64.zip` | `commandcodebridge.dll` | 64 位 CPA |
-| macOS Apple Silicon | `darwin-arm64.zip` | `commandcodebridge.dylib` | ARM64 CPA |
+| Linux x64 | `_linux_amd64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
+| Linux ARM64 | `_linux_arm64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
+| Windows x64 | `_windows_amd64.zip` | `commandcodebridge.dll` | 64 位 CPA |
+| macOS Apple Silicon | `_darwin_arm64.zip` | `commandcodebridge.dylib` | ARM64 CPA |
 
 以上均已在对应平台使用 CPA v8.0.23 运行模拟集成与异常恢复测试。Linux Alpine/musl 需另外构建。
 
 Linux 下载后，在文件所在目录核验：
 
 ```bash
-sha256sum --check commandcodebridge-0.1.0-linux-amd64.zip.sha256
+sha256sum --check --ignore-missing checksums.txt
 ```
 
-ARM64 替换文件名中的 `amd64`。Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`，与 `.sha256` 中的值比较。
+Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`，与 `checksums.txt` 中对应文件的值比较。首版旧式连字符命名 ZIP 保留供已下载用户使用，链接安装使用下划线命名 ZIP。
 
 ## 部署前确认
 

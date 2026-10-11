@@ -18,7 +18,9 @@
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases) 下载对应平台 ZIP 和 `.zip.sha256`，安装、升级与回滚步骤见 [部署说明](docs/DEPLOYMENT.md)。仓库为私有，下载需登录有访问权限的 GitHub 账号。
+仓库已公开，支持 GitHub 链接安装，无需 GitHub Token。将插件源 [registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json) 加入 CPA `plugins.store-sources`，在 CPAMP 插件商店选择 CommandCodeBridge 安装。完整配置及验收步骤见 [部署说明](docs/DEPLOYMENT.md)。
+
+也可从 [GitHub Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases) 下载对应平台 ZIP 和校验文件，手动安装。
 
 需要带插件支持的 CPA，已在 Linux amd64/arm64、Windows amd64 和 macOS arm64 验证 **v8.0.23**。发布文件名含 `no-plugin` 的构建不能加载插件。库必须匹配宿主系统、CPU 和 C 运行库；当前 Linux 包要求 glibc ≥2.34，适用于 CPA 官方 Debian 容器。Alpine/musl 需重新构建。
 
