@@ -132,15 +132,17 @@ def run():
         assert FaultUpstream.disconnected.wait(3), "cancel left upstream connection open"
         assert FaultUpstream.completed.wait(1)
         host.wait(lambda: any(row["upstream_model"] == "fault-cancel" and row["status"] >= 400 for row in host.logs()), "cancelled request log")
-        # The native adapter must publish one failure per client request, even
-        # when the 503 request tries two credentials. No usage was reported by
-        # these fixtures, so they must not invent tokens for partial output.
+        # CPA publishes failed attempts, including each credential in a 503
+        # failover. Reconcile these attempts rather than treating the host's
+        # retry history as duplicate accounting. No fixture reports usage.
         queue = []
+        failures = sum(FaultUpstream.counts[("fault-server", key)] for key in
+                       ("Bearer fixture-primary-key", "Bearer fixture-second-key")) + 2
         def failures_accounted():
             queue.extend(host.call("/v8/management/observability/usage/queue?count=100"))
-            return len(queue) >= 3
+            return len(queue) >= failures
         host.wait(failures_accounted, "failure accounting")
-        assert len(queue) == 3, len(queue)
+        assert len(queue) == failures, (len(queue), failures)
         assert all(row["failed"] and row["tokens"]["total_tokens"] == 0 for row in queue)
 
         # Rotate, edit and disable before restarting the real CPA process.
