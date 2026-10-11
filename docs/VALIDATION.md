@@ -124,3 +124,10 @@ Windows 设置 `BRIDGE_LIBRARY` 为实际 `.dll`；macOS 设置为 `.dylib`。�
 - [CI 38113046358](https://github.com/Gaoshou101/CommandCodeBridge/actions/runs/38113046358) 通过四平台构建/宿主联测及统一校验文件生成。
 - `tests/cpa_store_install.py` 在隔离 Windows CPA v8.0.23 中通过：公开源发现、匿名 Release 获取、选包、校验安装、配置登记、重启后加载和插件状态确认。测试移除 GitHub Token 环境设置，仅使用虚构 CPA 管理密钥，未发模型请求。
 - GitHub 安装器只写入动态库；目标主机的持久化目录、CPAMP 代理及真实凭据仍由用户安装后验收。
+
+## v0.2.3 远程 localhost 回调修复
+
+- 用户截图确认官网拒绝远程公开域名 callback；官方 CLI 1.79.2 使用 loopback `/callback` 和 `mode=redirect`。
+- 对照 CPAMP Codex/Claude 的原生回调提交与当前 CPA `oauth_callback.go`：通用接口只读取 `code/state/error`，不会交付 CommandCode 的 `apiKey`。新面板复用原生卡片、请求作用域和状态轮询，经插件管理 POST 提交完整 URL 与当前 state。
+- 本地 Go race/vet、原生 CPA v8.0.23 登录/额度/协议/异常恢复测试通过。远程提交验证管理鉴权、错误 state、重复提交、取消、凭证重启持久化和日志脱敏。前端新增原生卡片交互与接口回归测试。
+- 自动化使用虚构凭证与本地上游，不访问用户账户，不修改目标 CPAMP。用户真实官网授权及现场代理验收待升级后测试。

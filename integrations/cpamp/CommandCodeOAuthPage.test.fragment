@@ -1,0 +1,24 @@
+  it('shows the native remote callback input for CommandCode and submits its captured state', async () => {
+    pageMocks.supportsPlugin = true;
+    pageMocks.pluginsList.mockResolvedValue({ plugins: [{ id: 'commandcodebridge', oauthProvider: 'commandcode', supportsOAuth: true }] });
+    pageMocks.startAuth.mockResolvedValue({ url: 'https://commandcode.ai/studio/auth/cli?callback=http%3A%2F%2Flocalhost%3A45879%2Fcallback&state=commandcode-state&mode=redirect', state: 'commandcode-state' });
+    pageMocks.getAuthStatus.mockResolvedValue({ status: 'wait' });
+    pageMocks.submitCallback.mockResolvedValue({ status: 'ok' });
+    await act(async () => { renderer = create(<OAuthPage />); });
+    expect(renderer!.root.findAllByType('div').some(node => node.props.children === 'auth_login.commandcode_oauth_hint')).toBe(true);
+    await act(async () => {
+      const start = renderer!.root.findAllByType(Button).find(node => readText(node.props.children) === 'auth_login.plugin_oauth_button');
+      expect(start).toBeDefined();
+      await start!.props.onClick();
+    });
+    const input = renderer!.root.findAllByType(Input).find(node => node.props.placeholder === 'auth_login.commandcode_callback_placeholder');
+    expect(input?.props.type).toBe('password');
+    expect(input?.props.autoComplete).toBe('off');
+    const redirect = 'http://localhost:45879/callback?apiKey=fixture-remote-key&state=commandcode-state';
+    await act(async () => { input!.props.onChange({ target: { value: redirect } }); });
+    await act(async () => { await findCallbackButton(renderer!).props.onClick(); });
+    expect(pageMocks.submitCallback).toHaveBeenCalledWith('commandcode', redirect, { apiBase: pageMocks.apiBase, managementKey: pageMocks.managementKey }, 'commandcode-state');
+    expect(renderer!.root.findAllByType(Input).find(node => node.props.placeholder === 'auth_login.commandcode_callback_placeholder')?.props.value).toBe('');
+    expect(pageMocks.getAuthStatus).toHaveBeenCalledWith('commandcode-state', { apiBase: pageMocks.apiBase, managementKey: pageMocks.managementKey });
+  });
+

@@ -2,35 +2,39 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="cpa-api-base" content="/v0/management/commandcodebridge"><meta name="referrer" content="no-referrer"><title>CommandCode 登录</title>
 <style>
 :root{color-scheme:light dark;font-family:system-ui,sans-serif}body{margin:0;min-height:100dvh;display:grid;place-items:center;background:light-dark(#f7f7f5,#131414);color:light-dark(#202121,#eaeaea)}main{width:min(420px,calc(100% - 48px));padding:36px 0}h1{font-size:25px;font-weight:550}p{color:light-dark(#686868,#aaa);line-height:1.8;font-size:14px}a{color:inherit}button{cursor:pointer}button,input,select{box-sizing:border-box;width:100%;padding:12px;font:inherit;border:1px solid light-dark(#ccc,#444);border-radius:5px;background:light-dark(#fff,#222);color:inherit}button{margin-top:16px;background:light-dark(#181919,#eee);color:light-dark(#fff,#111)}label{display:block;margin:18px 0 6px;font-size:13px}details{margin-top:28px;font-size:14px}summary{cursor:pointer}#message{margin-top:18px;overflow-wrap:anywhere}#message.error{color:light-dark(#b42318,#ff9991)}[hidden]{display:none!important}
-</style></head><body><main><h1>CommandCode 登录</h1><p id="intro">登录官方工作台并授权，完成后返回 CPAMP。</p><button id="browserLogin">打开 CommandCode 官方登录</button>
-<details id="manual"><summary>手动填写 Studio API key</summary><form id="keyForm"><label for="apiKey">Studio API key</label><input id="apiKey" type="password" required autocomplete="off"><div id="managementAuth" hidden><label for="authType">管理认证方式</label><select id="authType"><option value="bearer">CPA 管理密钥</option><option value="x-management-key">CPAMP 管理密钥</option></select><label for="managementKey">管理密钥</label><input id="managementKey" type="password" autocomplete="current-password"></div><button id="submitKey" type="submit">验证并完成认证</button></form></details><p id="message" role="status" aria-live="polite"></p></main>
+</style></head><body><main><h1>CommandCode 登录</h1><p id="intro">授权后会跳转到 localhost。远程登录时页面无法连接是正常步骤：复制地址栏的完整回调 URL，返回这里或 CPAMP 提交。</p><button id="browserLogin">打开 CommandCode 官方登录</button>
+<form id="callbackForm"><label for="callbackUrl">完整 localhost 回调 URL</label><input id="callbackUrl" type="password" required autocomplete="off"><button id="submitCallback" type="submit">提交回调 URL</button></form>
+<div id="managementAuth" hidden><label for="authType">管理认证方式</label><select id="authType"><option value="bearer">CPA 管理密钥</option><option value="x-management-key">CPAMP 管理密钥</option></select><label for="managementKey">管理密钥</label><input id="managementKey" type="password" autocomplete="current-password"></div>
+<details id="manual"><summary>手动填写 Studio API key</summary><form id="keyForm"><label for="apiKey">Studio API key</label><input id="apiKey" type="password" required autocomplete="off"><button id="submitKey" type="submit">验证并完成认证</button></form></details><p id="message" role="status" aria-live="polite"></p></main>
 <script>/*__CPA_AUTH__*/</script><script>
 'use strict';
 const params=new URLSearchParams(location.search),state=params.get('state')||'',message=document.getElementById('message');
 const completed=params.get('completed')==='1';
 function show(text,error=false){message.textContent=text;message.classList.toggle('error',error)}
-function finish(){document.getElementById('intro').textContent='认证信息已提交，请返回 CPAMP 等待凭证保存。';document.getElementById('browserLogin').hidden=true;document.getElementById('manual').hidden=true;show('可以关闭此页面。')}
+function hideForms(){for(const id of ['browserLogin','callbackForm','managementAuth','manual'])document.getElementById(id).hidden=true}
+function finish(){document.getElementById('intro').textContent='认证信息已提交，请返回 CPAMP 等待凭证保存。';hideForms();show('可以关闭此页面。')}
 if(completed)finish();
-else if(params.get('completed')==='cancelled'){document.getElementById('browserLogin').hidden=true;document.getElementById('manual').hidden=true;show('已取消授权，请返回 CPAMP 重新开始认证。',true)}
-else if(!state){document.getElementById('browserLogin').disabled=true;document.getElementById('manual').hidden=true;show('登录链接无效，请从 CPAMP 重新开始认证。',true)}
+else if(params.get('completed')==='cancelled'){hideForms();show('已取消授权，请返回 CPAMP 重新开始认证。',true)}
+else if(!state){hideForms();show('登录链接无效，请从 CPAMP 重新开始认证。',true)}
 else{
   if(params.get('completed')==='failed')show('认证信息验证失败或登录已失效。可手动重试，或返回 CPAMP 重新开始认证。',true);
   const saved=window.CommandCodeBridgeAuthHeaders?.()||{};
   document.getElementById('managementAuth').hidden=Object.keys(saved).length>0;
   document.getElementById('browserLogin').onclick=()=>{
-    const callback=new URL(location.href);callback.pathname=callback.pathname.replace(/\/login\/?$/,'/callback');callback.search='';callback.hash='';
-    const official=new URL('https://commandcode.ai/studio/auth/cli');official.searchParams.set('callback',callback.href);official.searchParams.set('state',state);official.searchParams.set('mode','redirect');location.assign(official.href);
+    const official=new URL('https://commandcode.ai/studio/auth/cli');official.searchParams.set('callback','__LOCALHOST_CALLBACK__');official.searchParams.set('state',state);official.searchParams.set('mode','redirect');window.open(official.href,'_blank','noopener,noreferrer');
   };
-  document.getElementById('keyForm').onsubmit=async event=>{
-    event.preventDefault();const submit=document.getElementById('submitKey');submit.disabled=true;
+  async function submitLogin(event,route,body,button){
+    event.preventDefault();const submit=document.getElementById(button);submit.disabled=true;
     try{
       const headers={...(window.CommandCodeBridgeAuthHeaders?.()||{}),'Content-Type':'application/json'};
       const key=document.getElementById('managementKey').value.trim();if(key){delete headers.Authorization;delete headers['X-Management-Key'];const type=document.getElementById('authType').value;headers[type==='x-management-key'?'X-Management-Key':'Authorization']=type==='x-management-key'?key:'Bearer '+key}
       const base=document.querySelector('meta[name="cpa-api-base"]').content;
-      const response=await fetch(new URL(base+'/auth/complete',location.origin),{method:'POST',headers,body:JSON.stringify({state,api_key:document.getElementById('apiKey').value}),signal:AbortSignal.timeout(20000)});
+      const response=await fetch(new URL(base+'/auth/'+route,location.origin),{method:'POST',headers,body:JSON.stringify({state,...body}),signal:AbortSignal.timeout(20000)});
       const data=await response.json();if(!response.ok){if(response.status===401||response.status===403)document.getElementById('managementAuth').hidden=false;throw new Error(data.error||'认证失败')}
-      document.getElementById('apiKey').value='';document.getElementById('managementKey').value='';finish();
+      document.getElementById('apiKey').value='';document.getElementById('callbackUrl').value='';document.getElementById('managementKey').value='';finish();
     }catch(error){show(error.message||'认证失败，请重试。',true)}finally{submit.disabled=false}
-  };
+  }
+  document.getElementById('keyForm').onsubmit=event=>submitLogin(event,'complete',{api_key:document.getElementById('apiKey').value},'submitKey');
+  document.getElementById('callbackForm').onsubmit=event=>submitLogin(event,'callback',{redirect_url:document.getElementById('callbackUrl').value},'submitCallback');
 }
 </script></body></html>
