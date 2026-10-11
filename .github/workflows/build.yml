@@ -88,6 +88,8 @@ jobs:
           Expand-Archive -LiteralPath $archive -DestinationPath $taskDir
           $env:CPA_BINARY = Join-Path $taskDir 'cli-proxy-api.exe'
           $env:BRIDGE_LIBRARY = Join-Path $env:GITHUB_WORKSPACE 'dist/commandcodebridge.dll'
+          go test ./internal/bridge -run TestCredentialDeletion -count=1
+          if ($LASTEXITCODE -ne 0) { throw 'Windows credential deletion regression failed' }
           python tests/cpa_e2e.py
           python tests/cpa_reliability.py
       - name: ARM64 native host integration

@@ -279,8 +279,8 @@ func (s *Service) deleteCredential(cid string) (any, error) {
 	if e != nil || json.Unmarshal(b, &disk) != nil || disk.ID != c.ID || disk.APIKey != c.APIKey || !disk.Disabled {
 		return nil, fail(409, "credential changed while waiting for CPA; retry deletion")
 	}
-	if os.Remove(path) != nil {
-		return nil, fail(500, "credential removal failed")
+	if err := removeCredentialFile(path, b); err != nil {
+		return nil, err
 	}
 	s.mu.Lock()
 	delete(s.creds, cid)
