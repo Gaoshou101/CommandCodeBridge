@@ -1,8 +1,12 @@
-# CommandCodeBridge v0.2.0
+# CommandCodeBridge v0.2.1
 
 CPA 原生插件；C ABI 1 / RPC schema 6。官方 Provider API 路线，Go 订阅 `/alpha/generate` 不在当前范围。
 
-## 更新（2026-10-11）
+## v0.2.1（2026-10-11）
+
+- 左下角链接统一指向 [CommandCode 官网](https://commandcode.ai/)，文字改为「Command Code 官网」。公开控制台不再包含个人工作台路径。
+
+## v0.2.0（2026-10-11）
 
 - 第二轮布局参考 Command Code 官方工作台：固定可收起侧栏、灰白/纯黑配色与品牌紫，使用官方导航图标。凭据改为账号选择与单账号用量详情；日志改为紧凑列表；移除重复说明，将 API 示例收进设置页。
 - 使用 CommandCode 官网图标；优化明暗主题、文字层级、账户额度卡片与手机布局。
@@ -17,7 +21,7 @@ CPA 原生插件；C ABI 1 / RPC schema 6。官方 Provider API 路线，Go 订�
 
 提供 Linux amd64/arm64、Windows amd64、macOS arm64 ZIP，各附 SHA256 和包内 `BUILD.json`。选择匹配宿主的平台，按照 [部署说明](https://github.com/Gaoshou101/CommandCodeBridge/blob/main/docs/DEPLOYMENT.md) 安装、备份及回滚。Linux 包要求 glibc ≥2.34；Alpine/musl 需另行构建。需要带插件支持的 CPA，已验证 v8.0.23。
 
-仓库已公开。CPA / CPAMP 链接安装使用 [插件源 registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)，Release 提供安装器要求的 `commandcodebridge_0.2.0_<系统>_<架构>.zip` 和 `checksums.txt`。v0.2.0 使用上述安装器标准命名。
+仓库已公开。CPA / CPAMP 链接安装使用 [插件源 registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)，Release 提供安装器要求的 `commandcodebridge_0.2.1_<系统>_<架构>.zip` 和 `checksums.txt`。
 
 ## 已实现
 
