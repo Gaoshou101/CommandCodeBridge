@@ -1,6 +1,27 @@
 # CPAMP 部署、升级与回滚
 
-当前目标面板已确认可达，尚未取得 Manager Server 管理员登录或目标主机部署通道。以下为待执行步骤，不代表已在目标服务完成安装。
+目标 CPAMP 为 `https://cpa.gdp.pw/`，已确认可达。源码与安装包托管至 GitHub，用户自行安装；以下步骤供现场执行，当前尚未在目标服务完成安装。
+
+## 下载安装包
+
+从 [v0.1.0 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.1.0) 下载对应平台 ZIP 和 `.zip.sha256`。私有仓库需使用有访问权限的 GitHub 账号。
+
+| 宿主 | 安装包后缀 | 动态库 | 要求 |
+| --- | --- | --- | --- |
+| Linux x64 | `linux-amd64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
+| Linux ARM64 | `linux-arm64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
+| Windows x64 | `windows-amd64.zip` | `commandcodebridge.dll` | 64 位 CPA |
+| macOS Apple Silicon | `darwin-arm64.zip` | `commandcodebridge.dylib` | ARM64 CPA |
+
+以上均已在对应平台使用 CPA v8.0.23 运行模拟集成与异常恢复测试。Linux Alpine/musl 需另外构建。
+
+Linux 下载后，在文件所在目录核验：
+
+```bash
+sha256sum --check commandcodebridge-0.1.0-linux-amd64.zip.sha256
+```
+
+ARM64 替换文件名中的 `amd64`。Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`，与 `.sha256` 中的值比较。
 
 ## 部署前确认
 

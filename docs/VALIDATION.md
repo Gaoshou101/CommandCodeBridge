@@ -6,6 +6,8 @@
 - 初始提交：`9a43db5`，版本 0.1.0，C ABI 1 / RPC schema 6。
 - 基线通过 Go 竞态检查、go vet、10 个登录适配测试，以及 Linux/Windows CPA v8.0.23 的 25 次成功模拟请求和 401/403 场景。
 - 初次 GitHub Actions：运行 `38102314575` 全部成功，完成 Linux amd64/arm64、Windows amd64、macOS arm64 构建。此轮 ARM64/macOS 只构建，尚未在该轮运行宿主联测。
+- 后续 [CI 38103638587](https://github.com/Gaoshou101/CommandCodeBridge/actions/runs/38103638587) 全部成功：Go 竞态检查、go vet、10 个登录测试，及 Linux amd64/arm64、Windows amd64、macOS arm64 的 CPA v8.0.23 原生宿主集成与异常恢复测试。四个平台均已完成实际宿主加载与调用。
+- 四平台 ZIP 的 SHA256、`BUILD.json` 动态库校验、干净构建状态及来源提交已核验；此轮两个 Linux 包的 glibc 最低要求均为 2.34。正式发布使用主分支 CI 产物，并再次核对版本及来源提交。
 
 ## 真实账户
 
@@ -83,4 +85,4 @@ Windows 设置 `BRIDGE_LIBRARY` 为实际 `.dll`；macOS 设置为 `.dylib`。�
 
 ## 部署状态
 
-目标 CPAMP 页面可访问，当前页面要求 Manager Server 管理员密钥，它与 CPA Management Key 不同。当前尚无该登录凭据或目标服务器部署通道，未修改目标服务。
+目标 CPAMP `https://cpa.gdp.pw/` 页面可访问，当前页面要求 Manager Server 管理员密钥，它与 CPA Management Key 不同。用户已提供管理凭据并明确由其自行安装；本次交付源码、四平台安装包及安装/升级/回滚说明，未修改目标服务。现场代理、目录权限和 CPAMP 全链路验收留待用户安装后完成。

@@ -18,7 +18,9 @@
 
 ## 安装
 
-需要带插件支持的 CPA，已在 Linux x64 和 Windows x64 验证 **v8.0.23**。发布文件名含 `no-plugin` 的构建不能加载插件。库必须匹配宿主系统、CPU 和 C 运行库；当前 Linux 包要求 glibc ≥2.34，适用于 CPA 官方 Debian 容器。Alpine/musl 需重新构建。
+从 [GitHub Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases) 下载对应平台 ZIP 和 `.zip.sha256`，安装、升级与回滚步骤见 [部署说明](docs/DEPLOYMENT.md)。仓库为私有，下载需登录有访问权限的 GitHub 账号。
+
+需要带插件支持的 CPA，已在 Linux amd64/arm64、Windows amd64 和 macOS arm64 验证 **v8.0.23**。发布文件名含 `no-plugin` 的构建不能加载插件。库必须匹配宿主系统、CPU 和 C 运行库；当前 Linux 包要求 glibc ≥2.34，适用于 CPA 官方 Debian 容器。Alpine/musl 需重新构建。
 
 1. 解压 ZIP，将 `commandcodebridge.so`（Windows：`.dll`；macOS：`.dylib`）复制到 CPA `plugins.dir`。
 2. 将 [config.example.yaml](config.example.yaml) 合并至 CPA 配置，调整目录。首次 `models` 留空。
@@ -105,7 +107,7 @@ CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_benchmark.py --requests 64
 # 加 --serve 保持模拟控制台运行。
 ```
 
-当前：19 个 Go 顶层测试（含多个子场景）、10 个登录适配测试；真实 CPA v8.0.23 分别加载 Linux amd64 `.so` 和 Windows amd64 `.dll`，两种宿主各完成 25 次模拟成功生成及 401/403 场景，另验证 429 共享冷却与恢复、503 换号、流中断、超时、客户端取消和重启持久化。覆盖三种协议、流/非流、工具往返、图片、Claude 签名返回/重放、思考映射、优先级、会话重分配、编辑/删除、额度及 CPA 记账。
+当前：19 个 Go 顶层测试（含多个子场景）、10 个登录适配测试；真实 CPA v8.0.23 在 Linux amd64/arm64、Windows amd64 和 macOS arm64 加载原生动态库，四种宿主各完成 25 次模拟成功生成及 401/403 场景，另验证 429 共享冷却与恢复、503 换号、流中断、超时、客户端取消和重启持久化。覆盖三种协议、流/非流、工具往返、图片、Claude 签名返回/重放、思考映射、优先级、会话重分配、编辑/删除、额度及 CPA 记账。
 
 模拟套件只使用本地上游和虚构 key。真实账户余额、套餐、窗口与请求数已验证；免费 Ling 模型在 CPA 中通过 6 次 Chat/Responses 流与非流、工具往返，插件和 CPA 的 864 tokens 记账一致。GPT/Claude 测试模型被当前套餐拒绝，原生 Messages/图片/思考签名/ZDR 的真实验收尚未完成。未部署目标 CPAMP。ARM64/macOS 的实际宿主验证状态见 [验证记录](docs/VALIDATION.md)。
 

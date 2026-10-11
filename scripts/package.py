@@ -51,6 +51,8 @@ with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
     bundle.write(args.library, args.library.name)
     for name in ("README.md", "config.example.yaml", "LICENSE", "NOTICE"):
         bundle.write(ROOT / name, name)
+    for name in ("DEPLOYMENT.md", "VALIDATION.md"):
+        bundle.write(ROOT / "docs" / name, "docs/" + name)
     bundle.writestr("BUILD.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
 digest = hashlib.sha256(archive.read_bytes()).hexdigest()
 archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
