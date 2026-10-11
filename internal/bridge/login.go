@@ -11,7 +11,7 @@ import (
 const resourceBase = "/v0/resource/plugins/" + PluginID
 const loginLifetime = 10 * time.Minute
 const officialLoginURL = "https://commandcode.ai/studio/auth/cli"
-const localhostCallbackURL = "http://localhost:45879/callback"
+const localhostCallbackURL = "http://127.0.0.1:45879/callback"
 
 func authorizationURL(state string) string {
 	return officialLoginURL + "?" + url.Values{"callback": {localhostCallbackURL}, "state": {state}, "mode": {"redirect"}}.Encode()
@@ -50,8 +50,8 @@ func (s *Service) startLogin(raw json.RawMessage) (any, error) {
 	state := id() + id()
 	expires := time.Now().UTC().Add(loginLifetime)
 	s.logins[state] = &loginSession{expires: expires}
-	// CommandCode only accepts loopback callbacks. Like native remote OAuth,
-	// CPAMP submits the browser's final URL through an authenticated POST.
+	// The official browser flow POSTs credentials to a local receiver. The helper
+	// turns that POST into a copyable result for the authenticated CPAMP card.
 	return map[string]any{"Provider": Provider, "URL": authorizationURL(state), "State": state, "ExpiresAt": expires}, nil
 }
 

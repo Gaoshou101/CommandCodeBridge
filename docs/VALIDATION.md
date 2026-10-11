@@ -1,5 +1,14 @@
 # 开发验证记录
 
+## v0.2.4 官方 POST 回调和二进制面板部署修正（2026-10-11）
+
+- 重新核对官方 CLI 1.79.2 的 `handleBrowserCallback` / `handleLegacyJsonCallback`：`mode=redirect` 使用表单 POST，legacy 使用 JSON POST；凭证不在地址栏中。v0.2.3 的纯 URL 复制方案基于错误假设，先前模拟 URL 通过不能证明官网流程可用。
+- 新增浏览器电脑本地接收器，监听 `127.0.0.1:45879`，接收官方表单/JSON POST，再生成供 CPAMP 管理 POST 提交的复制结果。表单完成页 303 跳转只带 state；结果不写日志或文件，十分钟后清除，进程最多运行十五分钟。
+- 本地 Go race/vet 通过；接收器覆盖表单/JSON、CORS/PNA、state/有效期/重复字段/重放、拒绝、DNS rebinding 和裸 GET。真实 Linux CPA v8.0.23 验证「官方表单格式 → 实际本地接收器 → 受保护管理接口 → CPA 凭证保存及重启恢复」，使用虚构凭证和本地上游。
+- CPAMP 五个相关测试文件共 27 项通过，类型检查及单文件生产构建通过；原生卡片显示接收器说明、「认证结果」输入框和「打开本地接收器」入口。额度组件和真实字段规则保持原有实现。
+- 只读检查目标 `https://cpa.gdp.pw/management.html`，仍缺少原生额度与回调标记。用户确认 Manager Server 直接运行二进制；补充启动环境 `PANEL_PATH`、文件权限、内置页面回退行为与实际 HTTP 内容检查脚本。
+- 发布产物包含四平台接收器与页面检查脚本，CI 在四平台运行本地接收器到 CPA 的联测并验证包内校验。真实官网登录与目标面板安装仍由用户现场验收，未修改目标服务。
+
 ## v0.2.2 原生认证与额度适配（2026-10-11）
 
 - Linux amd64 的真实 CPA v8.0.23 加载插件：`commandcode-auth-url` 成功、pending 轮询、受保护手动完成、官方 redirect 形状回调、CPA 保存 auth-dir、重启加载均通过；未使用真实账号或付费请求。
@@ -127,6 +136,7 @@ Windows 设置 `BRIDGE_LIBRARY` 为实际 `.dll`；macOS 设置为 `.dylib`。�
 
 ## v0.2.3 远程 localhost 回调修复
 
+- 更正：此版本只模拟 URL 查询参数回调，未覆盖官网实际 POST 正文。地址栏复制方案不完整，已由 v0.2.4 的本地接收器补齐。
 - 用户截图确认官网拒绝远程公开域名 callback；官方 CLI 1.79.2 使用 loopback `/callback` 和 `mode=redirect`。
 - 对照 CPAMP Codex/Claude 的原生回调提交与当前 CPA `oauth_callback.go`：通用接口只读取 `code/state/error`，不会交付 CommandCode 的 `apiKey`。新面板复用原生卡片、请求作用域和状态轮询，经插件管理 POST 提交完整 URL 与当前 state。
 - 本地 Go race/vet、原生 CPA v8.0.23 登录/额度/协议/异常恢复测试通过。远程提交验证管理鉴权、错误 state、重复提交、取消、凭证重启持久化和日志脱敏。前端新增原生卡片交互与接口回归测试。

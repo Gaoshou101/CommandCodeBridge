@@ -1,6 +1,6 @@
 # CommandCodeBridge
 
-接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.3`；C ABI 1 / RPC schema 6。
+接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.4`；C ABI 1 / RPC schema 6。
 
 ## 功能
 
@@ -35,7 +35,9 @@
 
 插件不另开端口。页面可公开加载，数据及写操作由 CPA 管理鉴权保护。CPAMP 完整代理模式可选择 `X-Management-Key`；真实 CPAMP 部署需现场验证。
 
-`0.2.3` 修复远程 CPA 的官方 localhost 回调限制。**同时升级插件和 CPAMP 管理页面**，在「OAuth 登录」选择 CommandCodeBridge，打开官方授权链接；授权后若 localhost 页面无法连接，复制地址栏的完整 URL，返回 CPAMP 的「回调 URL」输入框提交。插件验证当前 state 和 API key 后，由 CPA 保存凭证；无需服务器开放回调端口或 SSH 隧道。详细步骤见 [原生凭证集成说明](integrations/cpamp/README.md)。`v0.2.2` 的远程公开地址回调会被官网拒绝。
+`0.2.4` 修正官方 OAuth POST 回调：**同时升级插件和 CPAMP 管理页面**，并在浏览器所在电脑运行安装包内的 `commandcodebridge-login`（Windows 为 `.exe`）。在 CPAMP 原生登录卡片复制官方授权链接，粘贴到本地接收器并授权；复制接收器显示的「认证结果」，返回卡片提交。官方把凭证放在 POST 正文中，裸 `localhost:45879/callback` 地址没有凭证；`v0.2.3` 的地址栏复制方案不完整。远端 CPA 无需开放回调端口。步骤和二进制部署说明见 [原生凭证集成说明](integrations/cpamp/README.md)。
+
+原生额度显示需要让 **CPAMP Manager Server 实际加载新版 `management.html`**。直接运行二进制时，在它的启动环境设置 `PANEL_PATH` 为页面绝对路径，再重启 Manager Server；路径不可读时服务会回退到内置旧页面。包内 `verify_cpamp_panel.py` 可检查实际返回的页面。现有 API key 账号无需重新添加，页面更新后点击「刷新额度」。
 
 Docker 应持久化以下目录，以及现有 CPA auth-dir：
 
@@ -91,10 +93,12 @@ Go ≥1.26、CGO、目标平台 C 编译器：
 ```bash
 CGO_ENABLED=1 go build -trimpath -buildvcs=false -buildmode=c-shared \
   -ldflags="-s -w" -o dist/commandcodebridge.so ./cmd/commandcodebridge
+CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" \
+  -o dist/commandcodebridge-login ./cmd/commandcodebridge-login
 python3 scripts/package.py dist/commandcodebridge.so --target linux-amd64
 ```
 
-Windows 用 MinGW GCC 输出 `.dll`；macOS 用 Clang 输出 `.dylib`。跨编译须提供目标 C 编译器。生成的 `.h` 安装时不需要。
+Windows 用 MinGW GCC 输出 `.dll`，接收器输出 `commandcodebridge-login.exe`；macOS 用 Clang 输出 `.dylib`。跨编译须提供目标 C 编译器。接收器无需 CGO，但必须与目标系统和 CPU 匹配。生成的 `.h` 安装时不需要。
 
 ```bash
 docker buildx build -f Dockerfile.build --platform linux/amd64 --output type=local,dest=dist .

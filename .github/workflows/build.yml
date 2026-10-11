@@ -29,6 +29,7 @@ jobs:
         run: |
           mkdir -p dist /tmp/cpa-test
           go build -trimpath -buildvcs=false -buildmode=c-shared -o dist/commandcodebridge.so ./cmd/commandcodebridge
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o dist/commandcodebridge-login ./cmd/commandcodebridge-login
           gh release download v8.0.23 --repo router-for-me/CLIProxyAPI --pattern CLIProxyAPI_8.0.23_linux_amd64.tar.gz --pattern checksums.txt --dir /tmp/cpa-test
           cd /tmp/cpa-test
           sha256sum --check --ignore-missing checksums.txt
@@ -73,6 +74,9 @@ jobs:
         run: |
           mkdir -p dist
           go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="-s -w -X commandcodebridge/internal/bridge.Repository=$REPOSITORY" -o dist/commandcodebridge.${{ matrix.extension }} ./cmd/commandcodebridge
+          helper=dist/commandcodebridge-login
+          if [ "${{ matrix.target }}" = windows-amd64 ]; then helper="$helper.exe"; fi
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$helper" ./cmd/commandcodebridge-login
           python scripts/package.py dist/commandcodebridge.${{ matrix.extension }} --target ${{ matrix.target }}
       - name: Windows native host integration
         if: matrix.target == 'windows-amd64'

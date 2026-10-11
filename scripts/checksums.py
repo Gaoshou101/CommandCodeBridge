@@ -48,6 +48,9 @@ for archive in archives:
         library = f"commandcodebridge.{TARGETS[target]}"
         if hashlib.sha256(bundle.read(library)).hexdigest() != build["library_sha256"]:
             parser.error("library checksum mismatch")
+        helper = 'commandcodebridge-login.exe' if goos == 'windows' else 'commandcodebridge-login'
+        if build.get('login_helper') != helper or hashlib.sha256(bundle.read(helper)).hexdigest() != build.get('login_helper_sha256'):
+            parser.error("local POST receiver missing or checksum mismatch")
         if build["source_dirty"] is not False or not build["source_commit"]:
             parser.error("release requires clean, traceable source")
         seen.add(target)

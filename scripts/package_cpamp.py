@@ -38,7 +38,7 @@ manifest = {
     "integration_source_commit": git_value(ROOT, "rev-parse", "HEAD"),
     "integration_source_dirty": bool(git_value(ROOT, "status", "--porcelain")),
     "management_html_sha256": hashlib.sha256(page).hexdigest(),
-    "install": "Mount management.html in the CPAMP Manager Server and set PANEL_PATH to its absolute container path. See README.md.",
+    "install": "Set PANEL_PATH in the running CPAMP Manager Server process to the absolute readable management.html path. Verify the served page with verify_cpamp_panel.py. See README.md.",
 }
 output = ROOT / "dist"
 output.mkdir(exist_ok=True)
@@ -48,6 +48,7 @@ with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
     bundle.write(license_file, "LICENSE-CPAMP")
     bundle.write(ROOT / "LICENSE", "LICENSE-CommandCodeBridge")
     bundle.write(ROOT / "integrations/cpamp/README.md", "README.md")
+    bundle.write(ROOT / "scripts/verify_cpamp_panel.py", "verify_cpamp_panel.py")
     for path in (ROOT / "integrations/cpamp").iterdir():
         if path.is_file():
             bundle.write(path, "integrations/cpamp/" + path.name)

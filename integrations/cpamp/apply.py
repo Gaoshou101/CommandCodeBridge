@@ -6,6 +6,7 @@ All insertion anchors are validated before any source is changed.
 import argparse
 import json
 import pathlib
+import re
 import shutil
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -64,6 +65,8 @@ changes = {
         ("import { validateDevinCallback } from './devinOAuth';", "import { validateDevinCallback } from './devinOAuth';\nimport { isCommandCodeProvider } from '@/services/api/commandCodeOAuth';"),
         ("hint: t('auth_login.plugin_oauth_hint', { plugin: title }),", "hint: t(isCommandCodeProvider(resolvePluginOAuthProviderId(plugin)) ? 'auth_login.commandcode_oauth_hint' : 'auth_login.plugin_oauth_hint', { plugin: title }),"),
         ('supportsCallback: false,\n              isPlugin: true,', 'supportsCallback: isCommandCodeProvider(resolvePluginOAuthProviderId(plugin)),\n              isPlugin: true,'),
+        ("onClick={() => window.open(state.url, '_blank', 'noopener,noreferrer')}", "onClick={() => window.open(isCommandCodeProvider(provider.id) ? 'http://127.0.0.1:45879' : state.url, '_blank', 'noopener,noreferrer')}"),
+        ("{getProviderActionText(provider.id, 'open_link')}", "{isCommandCodeProvider(provider.id) ? t('auth_login.commandcode_open_receiver') : getProviderActionText(provider.id, 'open_link')}"),
         ('await oauthApi.submitCallback(provider, redirectUrl, callbackAttempt.requestScope);', '''if (isCommandCodeProvider(provider)) {
         await oauthApi.submitCallback(provider, redirectUrl, callbackAttempt.requestScope, state);
       } else {
@@ -71,6 +74,7 @@ changes = {
       }'''),
         ("callbackStatus: 'success',\n        callbackError: undefined,", "callbackStatus: 'success',\n        callbackUrl: isCommandCodeProvider(provider) ? '' : providerState?.callbackUrl,\n        callbackError: undefined,"),
         ("<Input\n                        label={t(", "<Input\n                        type={isCommandCodeProvider(provider.id) ? 'password' : 'text'}\n                        autoComplete={isCommandCodeProvider(provider.id) ? 'off' : undefined}\n                        label={t("),
+        ("label={t(\n                          provider.id === 'devin'", "label={t(\n                          isCommandCodeProvider(provider.id)\n                            ? 'auth_login.commandcode_callback_label'\n                            : provider.id === 'devin'"),
         ("placeholder={t(\n                          provider.id === 'devin'", "placeholder={t(\n                          isCommandCodeProvider(provider.id)\n                            ? 'auth_login.commandcode_callback_placeholder'\n                            : provider.id === 'devin'"),
     ],
     oauth_page_test: [
@@ -83,17 +87,22 @@ changes = {
 }
 # Keep the remote handoff instructions alongside the native providers' text.
 translations = {
-    'zh-CN': ('打开官方授权页面。完成后会跳转到 localhost；若页面无法连接，这是远程登录的正常步骤。复制地址栏的完整回调 URL，粘贴到下方并提交。', 'http://localhost:45879/callback?apiKey=…&state=…'),
-    'zh-TW': ('開啟官方授權頁面。完成後會跳轉到 localhost；若頁面無法連線，這是遠端登入的正常步驟。複製網址列的完整回呼 URL，貼到下方並提交。', 'http://localhost:45879/callback?apiKey=…&state=…'),
-    'en': ('Open the official authorization page. After login, a localhost connection error is expected in remote mode. Copy the full callback URL from the address bar, paste it below, and submit.', 'http://localhost:45879/callback?apiKey=…&state=…'),
+    'zh-CN': ('CommandCodeBridge v0.2.4：官网以 POST 正文回传凭证。先在浏览器所在电脑运行安装包内 commandcodebridge-login，将本卡片的官方授权链接粘贴到接收器。授权后复制接收器页面的认证结果，在下方提交。裸 localhost 地址不包含凭证。', '粘贴本地接收器复制的认证结果', '认证结果'),
+    'zh-TW': ('CommandCodeBridge v0.2.4：官網以 POST 本文回傳憑證。先在瀏覽器所在電腦執行安裝包內 commandcodebridge-login，將本卡片的官方授權連結貼到接收器。授權後複製接收器頁面的認證結果，在下方提交。裸 localhost 網址不包含憑證。', '貼上本地接收器複製的認證結果', '認證結果'),
+    'en': ('CommandCodeBridge v0.2.4: Studio sends credentials in a POST body. Run commandcodebridge-login on your browser computer, paste this card’s official authorization link into it, then copy the receiver’s result and submit it below. A bare localhost URL has no credentials.', 'Paste the result copied from the local receiver', 'Authentication result'),
 }
-for locale, (hint, placeholder) in translations.items():
+receiver_labels = {'zh-CN': '打开本地接收器', 'zh-TW': '開啟本地接收器', 'en': 'Open local receiver'}
+for locale, (hint, placeholder, label) in translations.items():
     changes[root / f'apps/web/src/i18n/locales/{locale}.json'] = [
-        ('"plugin_oauth_hint":', '"commandcode_oauth_hint": ' + json.dumps(hint, ensure_ascii=False) + ',\n    "commandcode_callback_placeholder": ' + json.dumps(placeholder, ensure_ascii=False) + ',\n    "plugin_oauth_hint":'),
+        ('"plugin_oauth_hint":', '"commandcode_oauth_hint": ' + json.dumps(hint, ensure_ascii=False) + ',\n    "commandcode_callback_placeholder": ' + json.dumps(placeholder, ensure_ascii=False) + ',\n    "commandcode_callback_label": ' + json.dumps(label, ensure_ascii=False) + ',\n    "commandcode_open_receiver": ' + json.dumps(receiver_labels[locale], ensure_ascii=False) + ',\n    "plugin_oauth_hint":'),
     ]
 prepared = {}
 for path, replacements in changes.items():
     text = path.read_text(encoding='utf-8').replace('\r\n', '\n')
+    if path.parent.name == 'locales':
+        text = re.sub(r'^    "commandcode_(?:oauth_hint|callback_placeholder|callback_label|open_receiver)":.*\n', '', text, flags=re.MULTILINE)
+    if path == oauth_page_test:
+        text = re.sub(r"^  it\('shows the native remote callback input for CommandCode and submits its captured state', async \(\) => \{\n.*?^  \}\);\n\n", '', text, flags=re.MULTILINE | re.DOTALL)
     # Migrate the earlier local draft, which nested the refresh button inside
     # CPAMP's table detail button. Keep CommandCode outside that trigger.
     if path == accounts:

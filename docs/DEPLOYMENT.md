@@ -2,11 +2,35 @@
 
 目标 CPAMP 为 `https://cpa.gdp.pw/`，已确认可达。源码与安装包托管至 GitHub，用户自行安装；以下步骤供现场执行，当前尚未在目标服务完成安装。
 
-## v0.2.3 远程认证和原生额度显示
+## v0.2.4：二进制部署的面板替换与 POST 认证
 
-**同时升级插件动态库和 CPAMP 管理页面**。Release 的 `commandcodebridge_0.2.3_cpamp-web.zip` 包含已构建的 `management.html`，基于 CPAMP `dbf61dd`，现有 Manager Server 可通过 `PANEL_PATH` 指向该文件。Docker 中只读挂载页面目录到 Manager Server 容器，设置容器内绝对路径后重新创建该服务；无需重建服务端镜像。安装示例见 [CPAMP 前端适配](../integrations/cpamp/README.md)。只升级 `.so` 无法让旧页面出现回调输入框或原生额度卡片。
+**同时升级插件动态库和 CPAMP 管理页面**。Release 的 `commandcodebridge_0.2.4_cpamp-web.zip` 包含已构建的 `management.html`，基于 CPAMP `dbf61dd`。用户确认 Manager Server 直接运行二进制：在该二进制的启动环境设置 `PANEL_PATH` 为自定义页面的绝对路径，再重启 Manager Server。只重启 CPA 或强刷浏览器不会替换服务端内置页面。
 
-CommandCode 官方只接受 localhost callback。升级后重启 CPA 并强制刷新面板，在「OAuth 登录」重新开始 CommandCodeBridge 认证，打开官方链接。授权后若 `http://localhost:45879/callback?...` 页面无法连接，这是远程登录的正常步骤；复制地址栏完整 URL 回到 CPAMP「回调 URL」输入框提交，等待凭证保存。无需开放回调端口、SSH 隧道或 `public_base_url`，不要复用旧 state。完整 URL 含 API key，不要分享给其他人。
+Linux 手动启动示例（将两处路径换成现场实际值，并保留现有参数）：
+
+```bash
+export PANEL_PATH='/实际绝对路径/management.html'
+# 在此 shell 使用现有命令启动 Manager Server
+```
+
+若由 systemd 管理，在实际 Manager Server 的 service override 中加入以下设置，再执行 `daemon-reload` 并重启该服务：
+
+```ini
+[Service]
+Environment="PANEL_PATH=/实际绝对路径/management.html"
+```
+
+Windows 则在启动该程序的同一 PowerShell 进程设置 `$env:PANEL_PATH = 'C:\实际路径\management.html'`；Windows 服务应修改其实际启动环境。不要只在另一个终端设置环境变量。也可在既有 JSON 配置中设置 `panelPath`，`PANEL_PATH` 优先。
+
+Manager Server 无法打开文件时会回退到内置页面，因此安装后必须检查实际 HTTP 内容：
+
+```bash
+python3 verify_cpamp_panel.py https://cpa.gdp.pw/management.html --expected '/实际绝对路径/management.html'
+```
+
+脚本随两类 ZIP 提供，不需要管理密钥；应显示三项 `PASS` 和 `expected_page: MATCH`。若失败，检查运行进程的环境、文件读取权限、代理目标和缓存，再强刷浏览器。现有 API key 凭证无需重新导入；在原生列表、卡片或详情额度页点击「刷新额度」。余额与窗口百分比使用上游实际值；缺少月上限时显示未知。
+
+OAuth 还需在**浏览器所在电脑**运行 `commandcodebridge-login`。Windows 从 Windows ZIP 解压并运行 `.exe`，无需在远端 Linux 服务器运行此接收器。在 CPAMP 重新开始登录，复制官方授权链接到接收器，授权后复制接收器显示的认证结果到原生卡片提交。官方回传是 POST 正文，地址栏的裸 callback 无法交付凭证；v0.2.3 的地址栏方案需要升级。详细步骤见 [CPAMP 前端适配](../integrations/cpamp/README.md)。
 
 ## 通过 GitHub 链接安装
 
@@ -27,13 +51,13 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.3`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
+保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.4`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。接收器和 CPAMP 页面需从 Release ZIP 分别安装。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
 
 GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上面的 JSON 链接。若当前面板没有源配置入口，可通过 CPA 配置文件添加。服务器需能访问 `raw.githubusercontent.com`、`api.github.com` 和 GitHub 下载地址；无法访问时检查现有 CPA 全局代理。
 
 ## 手动下载安装包
 
-从 [v0.2.3 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.3) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。
+从 [v0.2.4 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.4) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。动态库按 CPA 服务器平台选择；本地接收器按浏览器电脑平台选择，两者可能不同。
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |

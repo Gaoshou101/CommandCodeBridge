@@ -1,5 +1,10 @@
 """Exercise native OAuth login and QuotaProvider through real CPA endpoints."""
 import json
+import html
+import os
+import re
+import subprocess
+import time
 import argparse
 import pathlib
 import threading
@@ -7,7 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from cpa_e2e import MockUpstream
+from cpa_e2e import MockUpstream, ROOT
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from cpa_harness import CPAHost, API
 
@@ -23,13 +28,13 @@ with CPAHost(MockUpstream) as host:
     official = urllib.parse.urlparse(login['url'])
     params = urllib.parse.parse_qs(official.query)
     assert official.scheme == 'https' and official.netloc == 'commandcode.ai' and official.path == '/studio/auth/cli'
-    assert params['callback'] == ['http://localhost:45879/callback'] and params['state'] == [login['state']] and params['mode'] == ['redirect']
+    assert params['callback'] == ['http://127.0.0.1:45879/callback'] and params['state'] == [login['state']] and params['mode'] == ['redirect']
     with urllib.request.urlopen(host.base + '/v0/resource/plugins/commandcodebridge/login?state=' + login['state']) as response:
         page = response.read().decode()
         assert response.headers['Referrer-Policy'] == 'no-referrer'
         assert 'studio/auth/cli' in page and "searchParams.set('mode','redirect')" in page
         assert '/*__CPA_AUTH__*/' not in page
-        assert '__LOCALHOST_CALLBACK__' not in page and "set('callback','http://localhost:45879/callback')" in page
+        assert '__LOCALHOST_CALLBACK__' not in page and "set('callback','http://127.0.0.1:45879/callback')" in page
     status_path = '/v0/management/get-auth-status?state=' + login['state']
     assert host.call(status_path)['status'] == 'wait'
     body = {'state': login['state'], 'api_key': 'fixture-native-login-key'}
@@ -65,7 +70,47 @@ with CPAHost(MockUpstream) as host:
     # Remote browser handoff: the official page requires loopback, and the
     # native panel POSTs the whole callback without ever visiting it on CPA.
     remote = host.call('/v0/management/commandcode-auth-url')
-    remote_callback = 'http://localhost:45879/callback?' + urllib.parse.urlencode({'state': remote['state'], 'apiKey': 'fixture-remote-login-key', 'keyName': 'remote account'})
+    # Replay the official CLI 1.79.2 browser contract: form POST body, no key
+    # in the address bar. Run the real local receiver before CPAMP submission.
+    helper = ROOT / 'dist' / ('commandcodebridge-login.exe' if os.name == 'nt' else 'commandcodebridge-login')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *_): return None
+    local = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    with (host.folder / 'helper.log').open('w', encoding='utf-8') as helper_log:
+        process = subprocess.Popen([str(helper), '-no-open'], stdout=helper_log, stderr=helper_log,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+        try:
+            deadline = time.monotonic() + 10
+            while True:
+                assert process.poll() is None, 'Local POST receiver exited'
+                try:
+                    with local.open('http://127.0.0.1:45879/', timeout=2) as response: receiver_page = response.read().decode()
+                    break
+                except OSError:
+                    assert time.monotonic() < deadline, 'Local receiver did not start'
+                    time.sleep(.05)
+            nonce = re.search(r'name="nonce" value="([^"]+)"', receiver_page).group(1)
+            def post_local(path, fields, origin):
+                request = urllib.request.Request('http://127.0.0.1:45879' + path,
+                    data=urllib.parse.urlencode(fields).encode(),
+                    headers={'Content-Type': 'application/x-www-form-urlencoded', 'Origin': origin})
+                try: return local.open(request, timeout=5)
+                except urllib.error.HTTPError as error:
+                    assert error.code == 303, 'Official POST format was rejected'
+                    return error
+            with post_local('/start', {'nonce': nonce, 'auth_url': remote['url']}, 'http://127.0.0.1:45879') as response:
+                assert urllib.parse.urlparse(response.headers['Location']).netloc == 'commandcode.ai'
+            with post_local('/callback', {'state': remote['state'], 'apiKey': 'fixture-remote-login-key',
+                    'userId': 'fixture-user', 'userName': 'remote account', 'keyName': 'remote account'}, 'https://commandcode.ai') as response:
+                landing = response.headers['Location']
+                assert 'apiKey' not in landing and 'fixture-remote-login-key' not in landing
+            with local.open('http://127.0.0.1:45879' + landing, timeout=5) as response:
+                result_page = response.read().decode()
+            remote_callback = html.unescape(re.search(r'id="result"[^>]+value="([^"]+)"', result_page).group(1))
+            assert urllib.parse.parse_qs(urllib.parse.urlparse(remote_callback).query)['apiKey'] == ['fixture-remote-login-key']
+        finally:
+            process.terminate(); process.wait(timeout=5)
+    assert 'fixture-remote-login-key' not in (host.folder / 'helper.log').read_text(encoding='utf-8')
     remote_body = {'state': remote['state'], 'redirect_url': remote_callback}
     try:
         urllib.request.urlopen(urllib.request.Request(host.base + API + '/auth/callback', data=json.dumps(remote_body).encode(), headers={'Content-Type': 'application/json'}))
@@ -74,7 +119,7 @@ with CPAHost(MockUpstream) as host:
     else:
         raise AssertionError('Remote callback bypassed management authentication')
     host.error(API + '/auth/callback', {**remote_body, 'state': 'different-current-state'}, 400)
-    host.error(API + '/auth/callback', {**remote_body, 'redirect_url': remote_callback.replace('localhost:45879', 'remote.example')}, 400)
+    host.error(API + '/auth/callback', {**remote_body, 'redirect_url': remote_callback.replace('127.0.0.1:45879', 'remote.example')}, 400)
     assert host.call('/v0/management/get-auth-status?state=' + remote['state'])['status'] == 'wait'
     assert host.call(API + '/auth/callback', remote_body)['status'] == 'ok'
     host.error(API + '/auth/callback', remote_body, 410)

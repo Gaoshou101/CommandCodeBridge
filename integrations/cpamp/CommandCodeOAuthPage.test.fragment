@@ -11,6 +11,10 @@
       expect(start).toBeDefined();
       await start!.props.onClick();
     });
+    await act(async () => {
+      renderer!.root.findAllByType(Button).find(node => readText(node.props.children) === 'auth_login.commandcode_open_receiver')!.props.onClick();
+    });
+    expect(window.open).toHaveBeenCalledWith('http://127.0.0.1:45879', '_blank', 'noopener,noreferrer');
     const input = renderer!.root.findAllByType(Input).find(node => node.props.placeholder === 'auth_login.commandcode_callback_placeholder');
     expect(input?.props.type).toBe('password');
     expect(input?.props.autoComplete).toBe('off');
