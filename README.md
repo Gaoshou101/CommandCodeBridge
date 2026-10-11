@@ -1,6 +1,6 @@
 # CommandCodeBridge
 
-接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.1`；C ABI 1 / RPC schema 6。
+接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.2`；C ABI 1 / RPC schema 6。
 
 ## 功能
 
@@ -13,6 +13,8 @@
 - 凭证健康度、共享模型冷却与最近请求状态；可展开的请求日志、实际 tokens、缓存读取/写入、首字耗时、输出速率及模型/时间统计。
 - 429 冷却与恢复探测、401/403 状态传播、脱敏、完整 SSE 和工具参数检查。
 - 中文管理页、CPA/CPAMP 登录适配、子目录代理、明暗主题和手机布局。
+- CPAMP OAuth 入口支持官方网页登录、状态轮询及 Studio key 手动回退；CPA 原生 QuotaProvider 输出套餐、真实余额和额度窗口。
+- CPAMP 原生凭证卡片及详情页展示需要同时安装 [CPAMP 前端适配](integrations/cpamp/README.md)。当前 CPAMP 内置平台额度列表不自动识别新插件。
 
 **范围：官方 Provider API。Go 订阅 `/alpha/generate` 和固定上游 provider 不包含在本插件中。** 用量查询使用账户 `/alpha/...` 查询接口。
 
@@ -32,6 +34,8 @@
 6. 客户端使用 CPA API 地址、**CPA 客户端密钥**和模型别名，默认去掉供应商前缀，例如 `glm-5.3-flash`、`deepseek-v4.1-flash`。
 
 插件不另开端口。页面可公开加载，数据及写操作由 CPA 管理鉴权保护。CPAMP 完整代理模式可选择 `X-Management-Key`；真实 CPAMP 部署需现场验证。
+
+`0.2.2` 修复原生 OAuth 入口的 `failed to generate authorization url`：在 CPAMP「OAuth 登录」选择 CommandCodeBridge，打开链接后点击官方登录。若官网不能回传到远程 CPA，展开手动填写 Studio key。异源面板或子目录代理可设置 `public_base_url` 为实际公开地址（包括代理前缀）。详细步骤与前端适配见 [原生凭证集成说明](integrations/cpamp/README.md)。`v0.2.1` 尚不含此修复，需升级至 `v0.2.2`。
 
 Docker 应持久化以下目录，以及现有 CPA auth-dir：
 
@@ -106,6 +110,7 @@ go test -race ./...
 go vet ./...
 node --test tests/cpa-auth.test.cjs
 CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_e2e.py
+CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_native_management.py
 CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_reliability.py
 CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_benchmark.py --requests 64
 # 加 --serve 保持模拟控制台运行。

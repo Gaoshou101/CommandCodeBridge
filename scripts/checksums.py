@@ -8,13 +8,15 @@ import zipfile
 TARGETS = {"linux-amd64": "so", "linux-arm64": "so", "windows-amd64": "dll", "darwin-arm64": "dylib"}
 parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=pathlib.Path)
+parser.add_argument("--include-cpamp", action="store_true", help="Also require the CPAMP frontend from the same integration source")
 args = parser.parse_args()
 archives = sorted(args.directory.rglob("commandcodebridge_*.zip"))
-if len(archives) != len(TARGETS):
-    parser.error("expected exactly four platform packages")
+if len(archives) != len(TARGETS) + int(args.include_cpamp):
+    parser.error("expected four platform packages" + (" and one CPAMP frontend" if args.include_cpamp else ""))
 seen = set()
 sources = set()
 lines = []
+panel_source = None
 for archive in archives:
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     expected, name = archive.with_suffix(".zip.sha256").read_text(encoding="utf-8").split()
@@ -22,6 +24,21 @@ for archive in archives:
         parser.error(f"checksum mismatch: {archive.name}")
     with zipfile.ZipFile(archive) as bundle:
         build = json.loads(bundle.read("BUILD.json"))
+        if build.get("artifact") == "cpamp-web":
+            if not args.include_cpamp or panel_source is not None:
+                parser.error("unexpected or duplicate CPAMP frontend")
+            if archive.name != f"commandcodebridge_{build['version']}_cpamp-web.zip":
+                parser.error("invalid CPAMP archive filename")
+            if hashlib.sha256(bundle.read("management.html")).hexdigest() != build["management_html_sha256"]:
+                parser.error("CPAMP frontend checksum mismatch")
+            if build["integration_source_dirty"] is not False or not build["integration_source_commit"] or not build["cpamp_source_commit"]:
+                parser.error("CPAMP release requires clean, traceable integration source")
+            for license_name in ["LICENSE-CPAMP", "LICENSE-CommandCodeBridge"]:
+                if not bundle.read(license_name).strip():
+                    parser.error("CPAMP release requires licenses")
+            panel_source = (build["version"], build["integration_source_commit"])
+            lines.append(f"{digest}  {archive.name}\n")
+            continue
         target = build["target"]
         if target not in TARGETS or target in seen:
             parser.error("invalid or duplicate platform")
@@ -38,6 +55,8 @@ for archive in archives:
     lines.append(f"{digest}  {archive.name}\n")
 if seen != set(TARGETS) or len(sources) != 1:
     parser.error("platform packages must share one version and source commit")
+if args.include_cpamp and panel_source not in sources:
+    parser.error("CPAMP frontend must share the native packages' version and integration source commit")
 output = args.directory / "checksums.txt"
 output.write_text("".join(lines), encoding="utf-8")
-print(f"Verified four platform packages; wrote {output}")
+print(f"Verified four platform packages" + (" and CPAMP frontend" if args.include_cpamp else "") + f"; wrote {output}")
