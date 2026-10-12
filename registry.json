@@ -6,7 +6,7 @@
       "name": "CommandCodeBridge",
       "description": "CommandCode 官方 Provider API：多凭据、模型映射、套餐用量和请求统计。",
       "author": "CommandCodeBridge contributors",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "repository": "https://github.com/Gaoshou101/CommandCodeBridge",
       "homepage": "https://github.com/Gaoshou101/CommandCodeBridge",
       "license": "MIT",

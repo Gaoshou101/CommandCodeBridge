@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   test:
+    needs: cpamp-web
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +21,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: commandcodebridge-cpamp-web
+          path: dist/cpamp-web
+      - name: Embed the matching native CPAMP panel
+        run: python3 scripts/embed_cpamp_panel.py dist/cpamp-web/*_cpamp-web.zip
       - run: go test -race ./...
       - run: go vet ./...
       - run: node --test tests/cpa-auth.test.cjs
@@ -38,6 +45,13 @@ jobs:
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_e2e.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_native_management.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_reliability.py
+          mkdir -p /tmp/cpamp-test
+          gh release download v1.14.0 --repo seakee/CPA-Manager-Plus --pattern cpa-manager-plus_v1.14.0_linux_amd64.tar.gz --pattern checksums.txt --dir /tmp/cpamp-test
+          cd /tmp/cpamp-test
+          sha256sum --check --ignore-missing checksums.txt
+          tar -xzf cpa-manager-plus_v1.14.0_linux_amd64.tar.gz
+          cd "$GITHUB_WORKSPACE"
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY=/tmp/cpamp-test/cpa-manager-plus_v1.14.0_linux_amd64/cpa-manager-plus python3 tests/cpamp_native_panel.py
 
   build:
     needs: test
@@ -66,6 +80,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: commandcodebridge-cpamp-web
+          path: dist/cpamp-web
+      - name: Embed the matching native CPAMP panel
+        shell: bash
+        run: python scripts/embed_cpamp_panel.py dist/cpamp-web/*_cpamp-web.zip
       - name: Build shared library
         shell: bash
         env:

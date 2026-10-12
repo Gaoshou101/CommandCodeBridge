@@ -2,6 +2,27 @@
 
 目标 CPAMP 为 `https://cpa.gdp.pw/`，已确认可达。源码与安装包托管至 GitHub，用户自行安装；以下步骤供现场执行，当前尚未在目标服务完成安装。
 
+## v0.2.5：插件内一键安装原生面板
+
+CPA 与 CPAMP Manager Server 直接运行在同一主机时：
+
+1. 在插件商店升级 CommandCodeBridge 至 v0.2.5，或安装对应平台动态库并重启 CPA。页面已内置到动态库，商店安装也能使用。
+2. 打开插件控制台的「设置 → CPAMP 原生面板」，点击「安装原生面板」。默认查找 Linux 正在运行的 `cpa-manager-plus`、官方安装目录 `~/cpa-manager-plus` 及 `run.sh` 指向的 runtime。
+3. 首次从内嵌页面切换时，按原方式重启 **Manager Server**，返回点击「检查生效状态」，确认「原生面板已生效」。后续更新已配置的页面通常只需强制刷新浏览器。已有 `PANEL_PATH` 时直接更新它实际指向的页面。
+4. 原生凭证列表、卡片或详情额度页点击「刷新额度」，现有 API key 账号无需重新导入。OAuth 继续使用 v0.2.4 的浏览器电脑本地接收器。
+
+路径不同可在此页面修改，安装或检查按钮会先保存路径。相同入口也通过 CPA 插件配置字段提供：
+
+| 配置项 | 默认 | 作用 |
+| --- | --- | --- |
+| `cpamp_install_dir` | 留空自动探测；官方默认 `~/cpa-manager-plus` | 自定义 CPAMP 安装目录或直接解压运行目录 |
+| `cpamp_config_path` | 自动选择活动 `config.json` | 多实例或独立配置文件时明确指定 |
+| `cpamp_panel_path` | 已有页面路径；否则安装目录下 `management.commandcodebridge.html` | 自定义页面文件位置，父目录须已存在 |
+
+路径可在插件控制台修改并存入 `settings.json`。CPA YAML 中显式填写的非空 CPAMP 路径在注册/重载时优先，确保插件配置页修改能覆盖旧保存值；使用控制台管理路径时，保留 YAML 的这三项为空。安装仅改变 Manager Server 的 `panelPath`，保存其他 JSON 值，备份原配置和页面，保留文件权限。发现多个实例不会自动选择。CPA 运行用户必须有相应目录读写权限。
+
+此入口操作 **CPA 插件所在主机的文件**。Manager Server 位于另一台机器或不共享目录的容器时，默认路径无法跨主机生效，应按下一节在 Manager Server 所在主机安装页面。不会连接其他服务器，也不会读取或更换管理密钥。
+
 ## v0.2.4：二进制部署的面板替换与 POST 认证
 
 **同时升级插件动态库和 CPAMP 管理页面**。Release 的 `commandcodebridge_0.2.4_cpamp-web.zip` 包含已构建的 `management.html`，基于 CPAMP `dbf61dd`。用户确认 Manager Server 直接运行二进制：在该二进制的启动环境设置 `PANEL_PATH` 为自定义页面的绝对路径，再重启 Manager Server。只重启 CPA 或强刷浏览器不会替换服务端内置页面。
@@ -51,13 +72,13 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.4`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。接收器和 CPAMP 页面需从 Release ZIP 分别安装。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
+保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.5`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。同机二进制的原生页面通过插件设置一键安装；浏览器电脑的接收器需从对应平台 ZIP 取出。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
 
 GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上面的 JSON 链接。若当前面板没有源配置入口，可通过 CPA 配置文件添加。服务器需能访问 `raw.githubusercontent.com`、`api.github.com` 和 GitHub 下载地址；无法访问时检查现有 CPA 全局代理。
 
 ## 手动下载安装包
 
-从 [v0.2.4 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.4) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。动态库按 CPA 服务器平台选择；本地接收器按浏览器电脑平台选择，两者可能不同。
+从 [v0.2.5 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.5) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。动态库按 CPA 服务器平台选择；本地接收器按浏览器电脑平台选择，两者可能不同。
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |

@@ -1,6 +1,6 @@
 # CommandCodeBridge
 
-接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.4`；C ABI 1 / RPC schema 6。
+接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.5`；C ABI 1 / RPC schema 6。
 
 ## 功能
 
@@ -37,7 +37,7 @@
 
 `0.2.4` 修正官方 OAuth POST 回调：**同时升级插件和 CPAMP 管理页面**，并在浏览器所在电脑运行安装包内的 `commandcodebridge-login`（Windows 为 `.exe`）。在 CPAMP 原生登录卡片复制官方授权链接，粘贴到本地接收器并授权；复制接收器显示的「认证结果」，返回卡片提交。官方把凭证放在 POST 正文中，裸 `localhost:45879/callback` 地址没有凭证；`v0.2.3` 的地址栏复制方案不完整。远端 CPA 无需开放回调端口。步骤和二进制部署说明见 [原生凭证集成说明](integrations/cpamp/README.md)。
 
-原生额度显示需要让 **CPAMP Manager Server 实际加载新版 `management.html`**。直接运行二进制时，在它的启动环境设置 `PANEL_PATH` 为页面绝对路径，再重启 Manager Server；路径不可读时服务会回退到内置旧页面。包内 `verify_cpamp_panel.py` 可检查实际返回的页面。现有 API key 账号无需重新添加，页面更新后点击「刷新额度」。
+`0.2.5` 将新版 CPAMP 页面内置到插件动态库。**同机二进制部署**只需进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server 并检查生效状态。自动识别 Linux 运行实例、官方默认 `~/cpa-manager-plus` 与活动 runtime；自定义目录可在同处或插件配置项 `cpamp_install_dir` 修改。安装会备份原文件、写入页面并配置 `panelPath`，不需要另下载页面或手动 export。已有 `PANEL_PATH` 时更新其指向的文件。现有 API key 账号无需重新添加，页面更新后点击「刷新额度」。CPA 与 Manager Server 分处不同主机/容器时，仍需在 Manager Server 所在主机安装页面；步骤见 [部署说明](docs/DEPLOYMENT.md)。
 
 Docker 应持久化以下目录，以及现有 CPA auth-dir：
 
@@ -90,7 +90,10 @@ curl http://127.0.0.1:8317/v1/chat/completions \
 
 Go ≥1.26、CGO、目标平台 C 编译器：
 
+先构建并打包匹配版本的 CPAMP 前端（见 [前端适配说明](integrations/cpamp/README.md)），再生成插件内置页面。开发测试可不含页面，发布构建必须包含：
+
 ```bash
+python3 scripts/embed_cpamp_panel.py dist/commandcodebridge_0.2.5_cpamp-web.zip
 CGO_ENABLED=1 go build -trimpath -buildvcs=false -buildmode=c-shared \
   -ldflags="-s -w" -o dist/commandcodebridge.so ./cmd/commandcodebridge
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" \
@@ -121,6 +124,8 @@ CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_benchmark.py --requests 64
 ```
 
 当前：30 个 Go 顶层测试（含多个子场景）、11 个登录适配测试；真实 CPA v8.0.23 在 Linux amd64/arm64、Windows amd64 和 macOS arm64 加载原生动态库，四种宿主各完成 25 次模拟成功生成及 401/403 场景，另验证 429 共享冷却与恢复、503 换号、流中断、超时、客户端取消和重启持久化。覆盖三种协议、流/非流、工具往返、图片、Claude 签名返回/重放、思考映射、优先级、会话重分配、编辑/删除、额度及 CPA 记账。
+
+v0.2.5 增加默认/活动 runtime 探测、配置路径修改、私有备份、并发修改拒绝、安装回滚与 HTTP 生效检查。真实 CPAMP v1.14.0 二进制与 CPA v8.0.23 的隔离联测验证：探测运行进程 → 内置页面安装 → 配置备份 → Manager Server 重启 → 实际页面字节一致；已有 `PANEL_PATH` 时替换页面无需重启。未修改用户目标服务。
 
 模拟套件只使用本地上游和虚构 key。真实账户余额、套餐、窗口与请求数已验证；免费 Ling 模型在 CPA 中通过 6 次 Chat/Responses 流与非流、工具往返，插件和 CPA 的 864 tokens 记账一致。GPT/Claude 测试模型被当前套餐拒绝，原生 Messages/图片/思考签名/ZDR 的真实验收尚未完成。未部署目标 CPAMP。ARM64/macOS 的实际宿主验证状态见 [验证记录](docs/VALIDATION.md)。
 

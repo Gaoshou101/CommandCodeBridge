@@ -16,7 +16,7 @@ request = urllib.request.Request(args.url, headers={'Cache-Control': 'no-cache',
 with urllib.request.urlopen(request, timeout=30) as response:
     page = response.read(16 * 1024 * 1024)
     served_url = response.url
-markers = {'native_quota': b'data-commandcode-native-quota', 'native_callback': b'commandcode_callback_placeholder', 'post_receiver_instructions': b'CommandCodeBridge v0.2.4'}
+markers = {'native_quota': b'data-commandcode-native-quota', 'native_callback': b'commandcode_callback_placeholder', 'post_receiver_instructions': b'commandcode_open_receiver'}
 print('URL:', served_url)
 print('SHA256:', hashlib.sha256(page).hexdigest())
 passed = True

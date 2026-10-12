@@ -4,6 +4,7 @@ import html
 import os
 import re
 import subprocess
+import tempfile
 import time
 import argparse
 import pathlib
@@ -134,6 +135,27 @@ with CPAHost(MockUpstream) as host:
     assert len(host.call(API + '/credentials')['credentials']) == 3
     with open(host.folder / 'cpa.log', encoding='utf-8') as log:
         assert 'fixture-remote-login-key' not in log.read()
+    # Exercise native binary panel installation through the real CPA plugin,
+    # including a directory override, private backup and idempotent update.
+    with tempfile.TemporaryDirectory(prefix='cpamp-native-panel-') as temporary:
+        native_dir = pathlib.Path(temporary)
+        (native_dir / ('cpa-manager-plus.exe' if os.name == 'nt' else 'cpa-manager-plus')).write_bytes(b'fixture native binary')
+        native_config = native_dir / 'config.json'
+        original = b'{"httpAddr":"127.0.0.1:1","dataDir":"./existing-data","customField":{"keep":true}}'
+        native_config.write_bytes(original)
+        host.call(API + '/config', {'cpamp_install_dir': str(native_dir)}, method='PUT')
+        status = host.call(API + '/cpamp/panel')
+        assert status['available'] and status['config_path'] == str(native_config) and not status['active']
+        result = host.call(API + '/cpamp/panel/install', {})
+        assert result['installed'] and result['restart_required'] and len(result['backups']) == 1
+        assert pathlib.Path(result['backups'][0]).read_bytes() == original
+        configured = json.loads(native_config.read_bytes())
+        assert configured['dataDir'] == './existing-data' and configured['customField'] == {'keep': True}
+        panel = pathlib.Path(configured['panelPath']).read_bytes()
+        assert b'data-commandcode-native-quota' in panel and b'commandcode_callback_placeholder' in panel
+        assert host.call(API + '/cpamp/panel/install', {}).get('backups', []) == []
+        host.call(API + '/config', {'cpamp_install_dir': ''}, method='PUT')
+    print('PASS: native CPAMP directory override, embedded panel install, config preservation, backup and repeated install')
     print('PASS: native CPA localhost OAuth URL, remote callback POST, state/replay/cancellation/authentication, credential persistence, QuotaProvider discovery, plan/credits/windows and unknown monthly cap')
     if args.serve:
         class PanelProxy(BaseHTTPRequestHandler):

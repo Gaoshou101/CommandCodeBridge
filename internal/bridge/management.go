@@ -19,7 +19,7 @@ const apiBase = "/v0/management/commandcodebridge"
 
 func (s *Service) registerManagement() any {
 	routes := []map[string]string{}
-	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "credentials", "credentials/usage", "logs", "statistics"}, "POST": {"credentials", "auth/complete", "auth/callback", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
+	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "credentials", "credentials/usage", "logs", "statistics", "cpamp/panel"}, "POST": {"credentials", "auth/complete", "auth/callback", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset", "cpamp/panel/install"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
 		for _, p := range paths {
 			routes = append(routes, map[string]string{"Method": method, "Path": apiBase + "/" + p})
 		}
@@ -79,6 +79,12 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 		s.mu.RUnlock()
 	case "GET /config":
 		value = s.config()
+	case "GET /cpamp/panel":
+		value = inspectNativePanel(s.config())
+	case "POST /cpamp/panel/install":
+		s.editMu.Lock()
+		value, e = installNativePanel(s.config())
+		s.editMu.Unlock()
 	case "GET /models":
 		value = map[string]any{"models": s.config().Models}
 	case "GET /credentials":
@@ -171,7 +177,7 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 			e = fail(400, "invalid settings JSON")
 		} else {
 			for k := range in {
-				if k != "timeout_seconds" && k != "log_retention" && k != "max_response_bytes" && k != "usage_refresh_seconds" && k != "zdr" {
+				if k != "timeout_seconds" && k != "log_retention" && k != "max_response_bytes" && k != "usage_refresh_seconds" && k != "zdr" && k != "cpamp_install_dir" && k != "cpamp_config_path" && k != "cpamp_panel_path" {
 					e = fail(400, "unsupported editable setting")
 					break
 				}
