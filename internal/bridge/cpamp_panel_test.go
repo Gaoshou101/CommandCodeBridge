@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -318,7 +319,8 @@ func TestNativePanelInstallAndPreservation(t *testing.T) {
 		t.Fatal("backup changed original bytes")
 	}
 	info, _ := os.Stat(backups[0])
-	if info.Mode().Perm()&0077 != 0 {
+	// Windows FileMode reports synthesized bits, not the file's access ACL.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0077 != 0 {
 		t.Fatal("config backup is not private")
 	}
 	var after map[string]json.RawMessage
