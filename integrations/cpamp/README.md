@@ -1,8 +1,10 @@
 # CPAMP 原生凭证集成
 
-## v0.2.5 推荐入口
+## v0.2.6 推荐入口
 
 同机直接运行二进制时，升级插件后进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server，再点击「检查生效状态」。插件动态库内置匹配版本页面，自动探测运行实例和官方默认 `~/cpa-manager-plus`，无需单独下载管理页面或手动设置环境变量。
+
+**v0.2.6 路径修复**识别 `USAGE_DATA_DIR` / `USAGE_DB_PATH` 环境变量模式下没有默认 `config.json` 的 Linux 运行实例。设置页会显示实际 PID、配置位置和当前 HTTP 页面是否含原生额度组件。检查不会创建文件；只有执行安装才创建必要配置。仅数据库路径且没有 `PANEL_PATH` 时会阻止创建配置，提示先固定数据目录或页面路径。详见[部署诊断](../../docs/DEPLOYMENT.md)。
 
 同处提供 `cpamp_install_dir`、`cpamp_config_path`、`cpamp_panel_path` 修改入口，并向 CPA 注册为插件配置项。安装保留其他 Manager Server 配置并创建私有备份。多个实例需明确选择；已有 `PANEL_PATH` 时更新其文件。异机/独立容器仍按下文在 Manager Server 所在主机安装页面。
 
@@ -19,8 +21,8 @@ CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加�
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。
-2. 安装匹配 CPA 平台的 CommandCodeBridge `0.2.5` 动态库并重启 CPA。从 [v0.2.5 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.5) 选择匹配平台 ZIP，并核验 `checksums.txt`。
-3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.5_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
+2. 安装匹配 CPA 平台的 CommandCodeBridge `0.2.6` 动态库并重启 CPA。从 [v0.2.6 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.6) 选择匹配平台 ZIP，并核验 `checksums.txt`。
+3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.6_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
 
 ```bash
 python /path/to/CommandCodeBridge/integrations/cpamp/apply.py /path/to/CPA-Manager-Plus --check

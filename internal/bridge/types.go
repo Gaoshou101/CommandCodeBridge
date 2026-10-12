@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.5"
+const Version = "0.2.6"
 const PluginID = "commandcodebridge"
 const Provider = "commandcode"
 
