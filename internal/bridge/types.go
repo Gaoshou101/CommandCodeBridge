@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.4"
+const Version = "0.2.5"
 const PluginID = "commandcodebridge"
 const Provider = "commandcode"
 
@@ -96,6 +96,9 @@ type Config struct {
 	DataDir             string  `json:"data_dir" yaml:"data_dir"`
 	BaseURL             string  `json:"base_url" yaml:"base_url"`
 	PublicBaseURL       string  `json:"public_base_url,omitempty" yaml:"public_base_url"`
+	CPAMPInstallDir     string  `json:"cpamp_install_dir" yaml:"cpamp_install_dir"`
+	CPAMPConfigPath     string  `json:"cpamp_config_path" yaml:"cpamp_config_path"`
+	CPAMPPanelPath      string  `json:"cpamp_panel_path" yaml:"cpamp_panel_path"`
 	Models              []Model `json:"models" yaml:"models"`
 	TimeoutSeconds      int     `json:"timeout_seconds" yaml:"timeout_seconds"`
 	LogRetention        int     `json:"log_retention" yaml:"log_retention"`
@@ -111,6 +114,11 @@ func defaultConfig() Config {
 var efforts = map[string]bool{"unset": true, "none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true, "ultra": true}
 
 func (c *Config) validate() error {
+	for _, path := range []string{c.CPAMPInstallDir, c.CPAMPConfigPath, c.CPAMPPanelPath} {
+		if strings.ContainsAny(path, "\x00\r\n") || len(path) > 4096 {
+			return fail(400, "invalid CPAMP path")
+		}
+	}
 	u, err := url.Parse(c.BaseURL)
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Trim(u.Path, "/") != "" {
 		return fail(400, "base_url must be an HTTP(S) origin without credentials or a path")

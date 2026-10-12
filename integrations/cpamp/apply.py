@@ -87,9 +87,9 @@ changes = {
 }
 # Keep the remote handoff instructions alongside the native providers' text.
 translations = {
-    'zh-CN': ('CommandCodeBridge v0.2.4：官网以 POST 正文回传凭证。先在浏览器所在电脑运行安装包内 commandcodebridge-login，将本卡片的官方授权链接粘贴到接收器。授权后复制接收器页面的认证结果，在下方提交。裸 localhost 地址不包含凭证。', '粘贴本地接收器复制的认证结果', '认证结果'),
-    'zh-TW': ('CommandCodeBridge v0.2.4：官網以 POST 本文回傳憑證。先在瀏覽器所在電腦執行安裝包內 commandcodebridge-login，將本卡片的官方授權連結貼到接收器。授權後複製接收器頁面的認證結果，在下方提交。裸 localhost 網址不包含憑證。', '貼上本地接收器複製的認證結果', '認證結果'),
-    'en': ('CommandCodeBridge v0.2.4: Studio sends credentials in a POST body. Run commandcodebridge-login on your browser computer, paste this card’s official authorization link into it, then copy the receiver’s result and submit it below. A bare localhost URL has no credentials.', 'Paste the result copied from the local receiver', 'Authentication result'),
+    'zh-CN': ('CommandCodeBridge v0.2.5：官网以 POST 正文回传凭证。先在浏览器所在电脑运行安装包内 commandcodebridge-login，将本卡片的官方授权链接粘贴到接收器。授权后复制接收器页面的认证结果，在下方提交。裸 localhost 地址不包含凭证。', '粘贴本地接收器复制的认证结果', '认证结果'),
+    'zh-TW': ('CommandCodeBridge v0.2.5：官網以 POST 本文回傳憑證。先在瀏覽器所在電腦執行安裝包內 commandcodebridge-login，將本卡片的官方授權連結貼到接收器。授權後複製接收器頁面的認證結果，在下方提交。裸 localhost 網址不包含憑證。', '貼上本地接收器複製的認證結果', '認證結果'),
+    'en': ('CommandCodeBridge v0.2.5: Studio sends credentials in a POST body. Run commandcodebridge-login on your browser computer, paste this card’s official authorization link into it, then copy the receiver’s result and submit it below. A bare localhost URL has no credentials.', 'Paste the result copied from the local receiver', 'Authentication result'),
 }
 receiver_labels = {'zh-CN': '打开本地接收器', 'zh-TW': '開啟本地接收器', 'en': 'Open local receiver'}
 for locale, (hint, placeholder, label) in translations.items():

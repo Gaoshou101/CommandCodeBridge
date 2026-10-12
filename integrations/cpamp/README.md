@@ -1,5 +1,11 @@
 # CPAMP 原生凭证集成
 
+## v0.2.5 推荐入口
+
+同机直接运行二进制时，升级插件后进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server，再点击「检查生效状态」。插件动态库内置匹配版本页面，自动探测运行实例和官方默认 `~/cpa-manager-plus`，无需单独下载管理页面或手动设置环境变量。
+
+同处提供 `cpamp_install_dir`、`cpamp_config_path`、`cpamp_panel_path` 修改入口，并向 CPA 注册为插件配置项。安装保留其他 Manager Server 配置并创建私有备份。多个实例需明确选择；已有 `PANEL_PATH` 时更新其文件。异机/独立容器仍按下文在 Manager Server 所在主机安装页面。
+
 ## 两处问题的原因
 
 旧插件 `auth.login.start` 固定返回「从控制台导入 key」，CPA 将它转换为 `failed to generate authorization url`。`0.2.2` 实现原生登录启动、轮询与凭证交付。
@@ -13,8 +19,8 @@ CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加�
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。
-2. 安装匹配 CPA 平台的 CommandCodeBridge `0.2.4` 动态库并重启 CPA。从 [v0.2.4 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.4) 选择匹配平台 ZIP，并核验 `checksums.txt`。
-3. **同时升级管理页面**。面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.4_cpamp-web.zip`，使用包内 `management.html`，按下节安装。只升级插件不会让旧面板出现认证结果输入框和原生额度卡片。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
+2. 安装匹配 CPA 平台的 CommandCodeBridge `0.2.5` 动态库并重启 CPA。从 [v0.2.5 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.5) 选择匹配平台 ZIP，并核验 `checksums.txt`。
+3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.5_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
 
 ```bash
 python /path/to/CommandCodeBridge/integrations/cpamp/apply.py /path/to/CPA-Manager-Plus --check

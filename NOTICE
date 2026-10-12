@@ -9,6 +9,11 @@ The original copyright and license are retained in LICENSE.
 
 CommandCodeBridge is an independent integration, not an official CommandCode product.
 
+Release shared libraries embed a modified CPA-Manager-Plus management panel
+from https://github.com/seakee/CPA-Manager-Plus (source baseline
+dbf61ddf438f399558722df3467355c42af9005d). The upstream license and copyrights
+are included as LICENSE-CPAMP in native and frontend release archives.
+
 The console's request-log layout is inspired by ClinePassBridge.
 The Command Code icon is sourced from the official website:
 https://commandcode.ai/favicon/2024/safari-pinned-tab.svg

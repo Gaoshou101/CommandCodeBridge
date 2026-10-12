@@ -13,3 +13,5 @@ __pycache__/
 /.env
 /.env.*
 /.credentials/
+/internal/bridge/panel-assets/management.html.gz
+/internal/bridge/panel-assets/LICENSE-CPAMP

@@ -1,5 +1,13 @@
 # 开发验证记录
 
+## v0.2.5 CPAMP 二进制面板一键安装（2026-10-12）
+
+- 核对上游 `bin/install-cpamp.sh`：官方默认安装目录为 `${HOME}/cpa-manager-plus`，活动 runtime 标记写入 `run.sh`，配置位于 runtime 二进制目录；直接运行原生包由程序默认读取二进制旁 `config.json`。
+- 插件内置 gzip 压缩的同版本 CPAMP 页面，添加目录/配置/页面路径配置项、控制台安装和检查按钮。Linux 优先探测实际进程及必要的路径环境；否则查默认目录与活动 runtime，多实例不猜测选择。
+- Go race/vet 与安装回归通过：修改路径持久化、配置其他字段保留、原文件私有备份、幂等重复安装、非法路径/符号链接拒绝、并发修改拒绝、写入失败回滚、实际 HTTP 内容检查。
+- 本地真实 CPA v8.0.23 与官方 CPAMP v1.14.0 Linux 二进制隔离联测通过：运行实例探测、内置页面安装、配置备份、首次重启后 HTTP 字节一致，已有 `PANEL_PATH` 的文件替换可立即生效。使用虚构密钥，不访问目标服务的私有数据。
+- CI 先构建 pinned CPAMP 页面，再嵌入四平台插件；统一校验要求所有原生包的内置页面摘要与独立前端包一致，并随原生包附 CPAMP 许可证。
+
 ## v0.2.4 官方 POST 回调和二进制面板部署修正（2026-10-11）
 
 - 重新核对官方 CLI 1.79.2 的 `handleBrowserCallback` / `handleLegacyJsonCallback`：`mode=redirect` 使用表单 POST，legacy 使用 JSON POST；凭证不在地址栏中。v0.2.3 的纯 URL 复制方案基于错误假设，先前模拟 URL 通过不能证明官网流程可用。

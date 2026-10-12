@@ -17,6 +17,8 @@ seen = set()
 sources = set()
 lines = []
 panel_source = None
+native_panels = set()
+panel_digest = None
 for archive in archives:
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     expected, name = archive.with_suffix(".zip.sha256").read_text(encoding="utf-8").split()
@@ -37,6 +39,7 @@ for archive in archives:
                 if not bundle.read(license_name).strip():
                     parser.error("CPAMP release requires licenses")
             panel_source = (build["version"], build["integration_source_commit"])
+            panel_digest = build['management_html_sha256']
             lines.append(f"{digest}  {archive.name}\n")
             continue
         target = build["target"]
@@ -51,6 +54,11 @@ for archive in archives:
         helper = 'commandcodebridge-login.exe' if goos == 'windows' else 'commandcodebridge-login'
         if build.get('login_helper') != helper or hashlib.sha256(bundle.read(helper)).hexdigest() != build.get('login_helper_sha256'):
             parser.error("local POST receiver missing or checksum mismatch")
+        if not build.get('native_panel_sha256'):
+            parser.error('native CPAMP panel provenance missing')
+        if not bundle.read('LICENSE-CPAMP').strip():
+            parser.error('embedded native panel requires the CPAMP license')
+        native_panels.add(build['native_panel_sha256'])
         if build["source_dirty"] is not False or not build["source_commit"]:
             parser.error("release requires clean, traceable source")
         seen.add(target)
@@ -60,6 +68,8 @@ if seen != set(TARGETS) or len(sources) != 1:
     parser.error("platform packages must share one version and source commit")
 if args.include_cpamp and panel_source not in sources:
     parser.error("CPAMP frontend must share the native packages' version and integration source commit")
+if len(native_panels) != 1 or (args.include_cpamp and panel_digest not in native_panels):
+    parser.error('all native plugins must embed the exact released CPAMP panel')
 output = args.directory / "checksums.txt"
 output.write_text("".join(lines), encoding="utf-8")
 print(f"Verified four platform packages" + (" and CPAMP frontend" if args.include_cpamp else "") + f"; wrote {output}")

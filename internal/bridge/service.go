@@ -95,15 +95,32 @@ func (s *Service) configure(raw json.RawMessage) error {
 		return fail(400, "invalid registration request")
 	}
 	c := defaultConfig()
+	var cpampPaths struct {
+		Install string `yaml:"cpamp_install_dir"`
+		Config  string `yaml:"cpamp_config_path"`
+		Panel   string `yaml:"cpamp_panel_path"`
+	}
 	if len(r.ConfigYAML) > 0 {
 		if e := yaml.Unmarshal(r.ConfigYAML, &c); e != nil {
 			return fail(400, "invalid plugin YAML")
 		}
+		_ = yaml.Unmarshal(r.ConfigYAML, &cpampPaths)
 	}
 	if b, e := os.ReadFile(filepath.Join(c.DataDir, "settings.json")); e == nil {
 		if json.Unmarshal(b, &c) != nil {
 			return fail(500, "stored settings are invalid")
 		}
+	}
+	// Explicit nonempty host configuration paths remain authoritative even
+	// when the console has already persisted model/request settings.
+	if cpampPaths.Install != "" {
+		c.CPAMPInstallDir = cpampPaths.Install
+	}
+	if cpampPaths.Config != "" {
+		c.CPAMPConfigPath = cpampPaths.Config
+	}
+	if cpampPaths.Panel != "" {
+		c.CPAMPPanelPath = cpampPaths.Panel
 	}
 	if e := c.validate(); e != nil {
 		return e
@@ -149,7 +166,14 @@ func (s *Service) configure(raw json.RawMessage) error {
 	return nil
 }
 func registration() any {
-	return map[string]any{"schema_version": 6, "metadata": map[string]any{"Name": "CommandCodeBridge", "Version": Version, "Author": Author, "GitHubRepository": Repository, "Description": "CommandCode Provider API, credentials, models, usage and request statistics", "ConfigFields": []map[string]string{{"Name": "data_dir", "Type": "string", "Description": "Persistent plugin data directory"}, {"Name": "public_base_url", "Type": "string", "Description": "Public CPA/CPAMP URL including any reverse proxy prefix; optional for same-origin panels"}}}, "capabilities": map[string]any{"auth_provider": true, "quota_provider": true, "model_provider": true, "executor": true, "executor_model_scope": "both", "executor_input_formats": []string{"chat-completions"}, "executor_output_formats": []string{"chat-completions", "claude"}, "management_api": true}}
+	fields := []map[string]string{
+		{"Name": "data_dir", "Type": "string", "Description": "Persistent plugin data directory"},
+		{"Name": "public_base_url", "Type": "string", "Description": "Public CPA/CPAMP URL including any reverse proxy prefix; optional for same-origin panels"},
+		{"Name": "cpamp_install_dir", "Type": "string", "Description": "CPAMP native install directory; empty detects the running instance or ~/cpa-manager-plus"},
+		{"Name": "cpamp_config_path", "Type": "string", "Description": "Optional CPAMP config.json override for multiple instances or custom deployments"},
+		{"Name": "cpamp_panel_path", "Type": "string", "Description": "Optional native management.html destination; empty uses the detected panel path"},
+	}
+	return map[string]any{"schema_version": 6, "metadata": map[string]any{"Name": "CommandCodeBridge", "Version": Version, "Author": Author, "GitHubRepository": Repository, "Description": "CommandCode Provider API, credentials, models, usage and request statistics", "ConfigFields": fields}, "capabilities": map[string]any{"auth_provider": true, "quota_provider": true, "model_provider": true, "executor": true, "executor_model_scope": "both", "executor_input_formats": []string{"chat-completions"}, "executor_output_formats": []string{"chat-completions", "claude"}, "management_api": true}}
 }
 func (s *Service) Handle(method string, raw json.RawMessage) (any, error) {
 	switch method {

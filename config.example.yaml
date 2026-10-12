@@ -7,7 +7,12 @@ plugins:
       enabled: true
       data_dir: /CLIProxyAPI/commandcodebridge-data
       base_url: https://api.commandcode.ai
-      # Browser OAuth uses localhost, then submits the callback URL in CPAMP.
+      # Empty paths enable same-host native CPAMP discovery (default ~/cpa-manager-plus).
+      # The console Settings page can override these and install the bundled panel.
+      cpamp_install_dir: ""
+      cpamp_config_path: ""
+      cpamp_panel_path: ""
+      # Browser OAuth uses a local POST receiver and CPAMP result submission.
       timeout_seconds: 600
       usage_refresh_seconds: 60
       log_retention: 1000
