@@ -1,6 +1,6 @@
 # CommandCodeBridge
 
-接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.5`；C ABI 1 / RPC schema 6。
+接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.6`；C ABI 1 / RPC schema 6。
 
 ## 功能
 
@@ -38,6 +38,8 @@
 `0.2.4` 修正官方 OAuth POST 回调：**同时升级插件和 CPAMP 管理页面**，并在浏览器所在电脑运行安装包内的 `commandcodebridge-login`（Windows 为 `.exe`）。在 CPAMP 原生登录卡片复制官方授权链接，粘贴到本地接收器并授权；复制接收器显示的「认证结果」，返回卡片提交。官方把凭证放在 POST 正文中，裸 `localhost:45879/callback` 地址没有凭证；`v0.2.3` 的地址栏复制方案不完整。远端 CPA 无需开放回调端口。步骤和二进制部署说明见 [原生凭证集成说明](integrations/cpamp/README.md)。
 
 `0.2.5` 将新版 CPAMP 页面内置到插件动态库。**同机二进制部署**只需进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server 并检查生效状态。自动识别 Linux 运行实例、官方默认 `~/cpa-manager-plus` 与活动 runtime；自定义目录可在同处或插件配置项 `cpamp_install_dir` 修改。安装会备份原文件、写入页面并配置 `panelPath`，不需要另下载页面或手动 export。已有 `PANEL_PATH` 时更新其指向的文件。现有 API key 账号无需重新添加，页面更新后点击「刷新额度」。CPA 与 Manager Server 分处不同主机/容器时，仍需在 Manager Server 所在主机安装页面；步骤见 [部署说明](docs/DEPLOYMENT.md)。
+
+`0.2.6` 修复 Linux CPAMP 环境变量部署没有 `config.json` 时误报「未找到同机 CPAMP」。检测显示真实 PID、配置来源与实际服务页面的原生额度组件状态，检查过程不创建文件。执行安装时才创建必要配置；已有 `PANEL_PATH` 的页面更新不需要重启。首次从内嵌页面切换仍需由维护者安排 Manager Server 重启。
 
 Docker 应持久化以下目录，以及现有 CPA auth-dir：
 
@@ -93,7 +95,7 @@ Go ≥1.26、CGO、目标平台 C 编译器：
 先构建并打包匹配版本的 CPAMP 前端（见 [前端适配说明](integrations/cpamp/README.md)），再生成插件内置页面。开发测试可不含页面，发布构建必须包含：
 
 ```bash
-python3 scripts/embed_cpamp_panel.py dist/commandcodebridge_0.2.5_cpamp-web.zip
+python3 scripts/embed_cpamp_panel.py dist/commandcodebridge_0.2.6_cpamp-web.zip
 CGO_ENABLED=1 go build -trimpath -buildvcs=false -buildmode=c-shared \
   -ldflags="-s -w" -o dist/commandcodebridge.so ./cmd/commandcodebridge
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" \

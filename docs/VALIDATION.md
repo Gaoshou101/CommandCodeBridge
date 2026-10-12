@@ -131,7 +131,15 @@ Windows 设置 `BRIDGE_LIBRARY` 为实际 `.dll`；macOS 设置为 `.dylib`。�
 
 ## 部署状态
 
-目标 CPAMP `https://cpa.gdp.pw/` 页面可访问，当前页面要求 Manager Server 管理员密钥，它与 CPA Management Key 不同。用户已提供管理凭据并明确由其自行安装；本次交付源码、四平台安装包及安装/升级/回滚说明，未修改目标服务。现场代理、目录权限和 CPAMP 全链路验收留待用户安装后完成。
+目标 CPAMP `https://cpa.gdp.pw/` 页面可访问，当前页面要求 Manager Server 管理员密钥，它与 CPA Management Key 不同。服务器部署与重启由用户维护。
+
+### 2026-10-12：环境变量模式的原生面板路径检测
+
+- 通过用户指定的 1Password RSA SSH 密钥只读核实实际进程、环境中的路径设置、凭证元数据和原生 Provider 登记。CPAMP v1.13.1 的环境变量模式没有默认 `config.json`；已安装 v0.2.5 因强制读取此文件误报「未找到同机 CPAMP」。
+- 公网与两处本机面板返回相同 SHA256，均缺少 CommandCode 原生额度/回调组件。已确认原生凭证与 Provider 存在，不能将显示缺失归因于凭证不存在。
+- 本地新增进程夹具覆盖缺失配置、仅数据库路径时阻止不安全的配置创建、已有 PANEL_PATH、配置损坏、准备期间快照变化、新文件原子无覆盖创建、写入失败回滚与匿名 HTTP 页面诊断。Go race、vet、JavaScript 语法和 diff 格式检查通过。
+- 使用真实 CPA v8.0.23 与校验过官方安装包的 CPAMP v1.13.1/v1.14.0，在本机隔离临时目录中通过 `tests/cpamp_native_panel.py --environment-only`：只读探测不创建配置；安装创建最小配置；临时 Manager 重启后返回与内置页面字节相同的原生面板；已有 PANEL_PATH 更新无需重启。v1.14.0 既有配置文件模式也通过。
+- 服务器二进制复制因 SSH 超时未完成；版本复现使用官方 v1.13.1 Release，不声称与现场自定义二进制完全相同。本次未重启线上服务、未修改远端文件，修复随 v0.2.6 发布，线上部署由维护者安排。详情见[部署诊断](DEPLOYMENT.md)。
 
 ## GitHub 链接安装
 

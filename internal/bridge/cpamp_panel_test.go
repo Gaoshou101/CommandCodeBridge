@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -59,6 +60,244 @@ func TestNativePanelDiscovery(t *testing.T) {
 	}
 }
 
+func panelProcessFixture(t *testing.T, binaryDir, environment string) string {
+	t.Helper()
+	procRoot := t.TempDir()
+	process := filepath.Join(procRoot, "1234")
+	if err := os.MkdirAll(process, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for name, destination := range map[string]string{"exe": filepath.Join(binaryDir, "cpa-manager-plus"), "cwd": binaryDir} {
+		if err := os.Symlink(destination, filepath.Join(process, name)); err != nil {
+			t.Skip("process fixture needs symlink support: ", err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(process, "environ"), []byte(environment), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return procRoot
+}
+
+func TestNativePanelEnvironmentOnlyProcess(t *testing.T) {
+	for _, usageVariable := range []string{"USAGE_DATA_DIR=/fixture/data", "USAGE_DATA_DIR=/fixture/data\x00USAGE_DB_PATH=/fixture/usage.sqlite"} {
+		t.Run(strings.Split(usageVariable, "=")[0], func(t *testing.T) {
+			root := t.TempDir()
+			binaryDir := filepath.Join(root, "runtime", "cpa-manager-plus_v1.13.1_linux_amd64")
+			config := nativeFixture(t, binaryDir)
+			if err := os.Remove(config); err != nil {
+				t.Fatal(err)
+			}
+			proc := panelProcessFixture(t, binaryDir, usageVariable+"\x00HTTP_ADDR=127.0.0.1:1\x00CPA_MANAGER_ADMIN_KEY=fixture-private-key\x00")
+			targets := runningPanelTargetsAt(Config{CPAMPInstallDir: root + string(os.PathSeparator)}, proc)
+			if len(targets) != 1 {
+				t.Fatal("environment-only manager not detected")
+			}
+			target := targets[0]
+			if target.PID != 1234 || target.ConfigExists || target.ConfigurationMode != "environment" || target.ConfigPath != config || target.PanelPath != filepath.Join(root, "management.commandcodebridge.html") || !target.RestartRequired {
+				t.Fatalf("incorrect environment-only target: %+v", target)
+			}
+			status := panelStatus(Config{}, targets, []byte("fixture panel"))
+			if !status.Installable || strings.Contains(string(jsonBytes(status)), "fixture-private-key") {
+				t.Fatal("target unusable or process secret exposed")
+			}
+			if _, err := os.Stat(config); !os.IsNotExist(err) {
+				t.Fatal("inspection created a config")
+			}
+			if _, err := os.Stat(target.PanelPath); !os.IsNotExist(err) {
+				t.Fatal("inspection created a panel")
+			}
+			backups, err := applyNativePanel(target, []byte("fixture panel"))
+			if err != nil || len(backups) != 0 {
+				t.Fatalf("first install failed: %v", err)
+			}
+			var saved map[string]string
+			data, _ := os.ReadFile(config)
+			if json.Unmarshal(data, &saved) != nil || saved["panelPath"] != target.PanelPath {
+				t.Fatal("minimal panel config not created")
+			}
+			if len(saved) != 1 {
+				t.Fatal("unrelated defaults or secrets written into config")
+			}
+		})
+	}
+}
+
+func TestNativePanelDBOnlyProcessRequiresExplicitDefaults(t *testing.T) {
+	for _, panelEnv := range []string{"", "PANEL_PATH=existing.html\x00"} {
+		t.Run(panelEnv, func(t *testing.T) {
+			root := t.TempDir()
+			config := nativeFixture(t, root)
+			if err := os.Remove(config); err != nil {
+				t.Fatal(err)
+			}
+			proc := panelProcessFixture(t, root, "USAGE_DB_PATH=/fixture/usage.sqlite\x00HTTP_ADDR=127.0.0.1:1\x00"+panelEnv)
+			targets := runningPanelTargetsAt(Config{}, proc)
+			if len(targets) != 1 || targets[0].ConfigExists {
+				t.Fatal("DB-only running process not retained")
+			}
+			status := panelStatus(Config{}, targets, []byte("fixture panel"))
+			_, err := applyNativePanel(targets[0], []byte("fixture panel"))
+			if panelEnv == "" {
+				if status.Installable || err == nil || !strings.Contains(status.Message, "USAGE_DATA_DIR") {
+					t.Fatal("DB-only defaults could be changed by creating config")
+				}
+				if _, err := os.Stat(targets[0].PanelPath); !os.IsNotExist(err) {
+					t.Fatal("blocked installation created a panel")
+				}
+			} else if !status.Installable || err != nil {
+				t.Fatalf("existing DB-only PANEL_PATH cannot be updated: %v", err)
+			}
+			if _, err := os.Stat(config); !os.IsNotExist(err) {
+				t.Fatal("DB-only operation created config")
+			}
+		})
+	}
+}
+
+func TestNativePanelEnvironmentOverrideWithoutConfig(t *testing.T) {
+	root := t.TempDir()
+	config := nativeFixture(t, root)
+	if err := os.Remove(config); err != nil {
+		t.Fatal(err)
+	}
+	proc := panelProcessFixture(t, root, "USAGE_DATA_DIR=/fixture/data\x00PANEL_PATH=existing.html\x00HTTP_ADDR=127.0.0.1:1\x00")
+	targets := runningPanelTargetsAt(Config{}, proc)
+	if len(targets) != 1 || targets[0].RestartRequired || targets[0].PanelPath != filepath.Join(root, "existing.html") {
+		t.Fatal("process PANEL_PATH not respected without config")
+	}
+	status := panelStatus(Config{}, targets, []byte("fixture panel"))
+	if !status.Installable || status.RestartRequired || !strings.Contains(status.Message, "无需创建配置文件") {
+		t.Fatal("environment page update incorrectly requires config or restart")
+	}
+	if _, err := applyNativePanel(targets[0], []byte("fixture panel")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(config); !os.IsNotExist(err) {
+		t.Fatal("environment panel installation unnecessarily created config")
+	}
+	status = panelStatus(Config{}, targets, []byte("fixture panel"))
+	if status.RestartRequired || !strings.Contains(status.Message, "HTTP 核验未通过") {
+		t.Fatal("unreachable listener incorrectly reported as requiring restart")
+	}
+	status = panelStatus(Config{CPAMPPanelPath: filepath.Join(root, "other.html")}, targets, []byte("fixture panel"))
+	if status.Installable {
+		t.Fatal("conflicting process PANEL_PATH was installable")
+	}
+}
+
+func TestNativePanelMissingOrInvalidConfigIsNotIgnored(t *testing.T) {
+	root := t.TempDir()
+	config := nativeFixture(t, root)
+	for _, value := range []string{"invalid JSON", "missing"} {
+		t.Run(value, func(t *testing.T) {
+			if value == "missing" {
+				if err := os.Remove(config); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(config, []byte(value), 0644); err != nil {
+				t.Fatal(err)
+			}
+			proc := panelProcessFixture(t, root, "USAGE_DATA_DIR=/fixture/data\x00CPA_MANAGER_CONFIG="+config+"\x00HTTP_ADDR=127.0.0.1:1\x00")
+			targets := runningPanelTargetsAt(Config{}, proc)
+			if len(targets) != 1 || targets[0].DiscoveryError == "" || panelStatus(Config{}, targets, []byte("fixture")).Installable {
+				t.Fatal("bad running config hidden or accepted for installation")
+			}
+		})
+	}
+}
+
+func TestNativePanelNewConfigConcurrentEditAndRollback(t *testing.T) {
+	root := t.TempDir()
+	config := nativeFixture(t, root)
+	if err := os.Remove(config); err != nil {
+		t.Fatal(err)
+	}
+	target, err := readPanelTargetConfig(config, root, "fixture", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config, []byte(`{"external":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := applyNativePanel(target, []byte("fixture")); err == nil {
+		t.Fatal("new external config overwritten")
+	}
+	if err := os.Remove(config); err != nil {
+		t.Fatal(err)
+	}
+	_, err = applyNativePanelWithWriter(target, []byte("fixture"), func(path string, data []byte, mode os.FileMode, existed bool) error {
+		if path == config {
+			return fmt.Errorf("fixture disk failure")
+		}
+		return writePanelFile(path, data, mode, existed)
+	})
+	if err == nil {
+		t.Fatal("new config write failure ignored")
+	}
+	for _, path := range []string{config, target.PanelPath} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatal("failed install left new files behind")
+		}
+	}
+}
+
+func TestNativePanelConfigPreparationRejectsSnapshotDrift(t *testing.T) {
+	for _, exists := range []bool{false, true} {
+		t.Run(fmt.Sprint(exists), func(t *testing.T) {
+			root := t.TempDir()
+			config := nativeFixture(t, root)
+			if !exists {
+				if err := os.Remove(config); err != nil {
+					t.Fatal(err)
+				}
+			}
+			target, err := readPanelTargetConfig(config, root, "fixture", "", true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			external := []byte(`{"external":true,"dataDir":"/keep"}`)
+			if err := os.WriteFile(config, external, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := preparePanelConfigChange(target, []byte(`{"panelPath":"new.html"}`)); err == nil {
+				t.Fatal("configuration changed during preparation was accepted")
+			}
+			actual, _ := os.ReadFile(config)
+			if !bytes.Equal(actual, external) {
+				t.Fatal("snapshot check changed external configuration")
+			}
+		})
+	}
+}
+
+func TestNativePanelNewConfigAtomicCreationPreservesConcurrentFile(t *testing.T) {
+	root := t.TempDir()
+	config := nativeFixture(t, root)
+	if err := os.Remove(config); err != nil {
+		t.Fatal(err)
+	}
+	target, err := readPanelTargetConfig(config, root, "fixture", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := []byte(`{"external":true,"dataDir":"/keep"}`)
+	_, err = applyNativePanelWithWriter(target, []byte("fixture"), func(path string, data []byte, mode os.FileMode, existed bool) error {
+		if path == config {
+			if err := os.WriteFile(config, external, 0600); err != nil {
+				return err
+			}
+		}
+		return writePanelFile(path, data, mode, existed)
+	})
+	actual, _ := os.ReadFile(config)
+	if err == nil || !bytes.Equal(actual, external) {
+		t.Fatal("external config created just before commit was overwritten")
+	}
+	if _, err := os.Stat(target.PanelPath); !os.IsNotExist(err) {
+		t.Fatal("panel not rolled back after config creation conflict")
+	}
+}
+
 func TestNativePanelInstallAndPreservation(t *testing.T) {
 	root := t.TempDir()
 	config := nativeFixture(t, root)
@@ -80,7 +319,8 @@ func TestNativePanelInstallAndPreservation(t *testing.T) {
 		t.Fatal("backup changed original bytes")
 	}
 	info, _ := os.Stat(backups[0])
-	if info.Mode().Perm()&0077 != 0 {
+	// Windows FileMode reports synthesized bits, not the file's access ACL.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0077 != 0 {
 		t.Fatal("config backup is not private")
 	}
 	var after map[string]json.RawMessage
@@ -155,11 +395,11 @@ func TestNativePanelRollback(t *testing.T) {
 	config := nativeFixture(t, root)
 	original, _ := os.ReadFile(config)
 	target, _ := readPanelTarget(config, root, "fixture", "")
-	_, err := applyNativePanelWithWriter(target, []byte("fixture new panel"), func(path string, data []byte, mode os.FileMode) error {
+	_, err := applyNativePanelWithWriter(target, []byte("fixture new panel"), func(path string, data []byte, mode os.FileMode, existed bool) error {
 		if path == config {
 			return fmt.Errorf("fixture config disk failure")
 		}
-		return writePanelFile(path, data, mode)
+		return writePanelFile(path, data, mode, existed)
 	})
 	if err == nil {
 		t.Fatal("config disk failure ignored")
@@ -185,6 +425,10 @@ func TestNativePanelActivation(t *testing.T) {
 	target := &nativePanelTarget{address: strings.TrimPrefix(server.URL, "http://")}
 	if !panelIsActive(target, page) || panelIsActive(target, []byte("other")) {
 		t.Fatal("activation did not compare actual HTTP page")
+	}
+	observation := observePanel(target, nil)
+	if !observation.Checked || observation.NativeQuota || observation.Matches || len(observation.SHA256) != 64 {
+		t.Fatal("served-page diagnosis requires no embedded asset and must report actual content")
 	}
 	target.address = "remote.example:18317"
 	if panelIsActive(target, page) {

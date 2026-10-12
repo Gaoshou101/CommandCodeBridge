@@ -52,6 +52,7 @@ jobs:
           tar -xzf cpa-manager-plus_v1.14.0_linux_amd64.tar.gz
           cd "$GITHUB_WORKSPACE"
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY=/tmp/cpamp-test/cpa-manager-plus_v1.14.0_linux_amd64/cpa-manager-plus python3 tests/cpamp_native_panel.py
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY=/tmp/cpamp-test/cpa-manager-plus_v1.14.0_linux_amd64/cpa-manager-plus python3 tests/cpamp_native_panel.py --environment-only
 
   build:
     needs: test
@@ -114,8 +115,8 @@ jobs:
           Expand-Archive -LiteralPath $archive -DestinationPath $taskDir
           $env:CPA_BINARY = Join-Path $taskDir 'cli-proxy-api.exe'
           $env:BRIDGE_LIBRARY = Join-Path $env:GITHUB_WORKSPACE 'dist/commandcodebridge.dll'
-          go test ./internal/bridge -run TestCredentialDeletion -count=1
-          if ($LASTEXITCODE -ne 0) { throw 'Windows credential deletion regression failed' }
+          go test ./internal/bridge -run 'TestCredentialDeletion|TestNativePanel' -count=1
+          if ($LASTEXITCODE -ne 0) { throw 'Windows credential deletion/native panel regressions failed' }
           python tests/cpa_e2e.py
           if ($LASTEXITCODE -ne 0) { throw 'Windows native host integration failed' }
           python tests/cpa_native_management.py

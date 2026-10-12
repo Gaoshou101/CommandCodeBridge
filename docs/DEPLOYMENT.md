@@ -1,12 +1,24 @@
 # CPAMP 部署、升级与回滚
 
-目标 CPAMP 为 `https://cpa.gdp.pw/`，已确认可达。源码与安装包托管至 GitHub，用户自行安装；以下步骤供现场执行，当前尚未在目标服务完成安装。
+目标 CPAMP 为 `https://cpa.gdp.pw/`。2026-10-12 已通过 SSH 只读核实部署路径和实际页面；v0.2.6 修复包含在发布源码与安装包中，未安装到目标服务。
+
+## v0.2.6：环境变量部署的路径检测修复
+
+现场确认 Manager Server 运行于 `/root/cpa-manager-plus/runtime/cpa-manager-plus_v1.13.1_linux_amd64/cpa-manager-plus`，由 systemd 直接启动。进程设置了 `USAGE_DATA_DIR` 和 `USAGE_DB_PATH`，没有 `CPA_MANAGER_CONFIG` 或 `PANEL_PATH`，runtime 中也没有 `config.json`。CPAMP 在这种环境变量模式下会正常跳过默认配置文件创建。
+
+v0.2.5 的安装探测要求配置文件存在，因此即使设置 `/root/cpa-manager-plus/`，仍误报「未找到同机 CPAMP」。旧 `run.sh` 还引用已不存在的 v1.12.7 配置，不能用它判断活动服务路径。
+
+v0.2.6 从实际进程识别环境变量模式，返回 PID、真实配置位置、配置是否存在和服务页面检查结果。只读检查不会创建任何文件；配置损坏或显式配置路径不可读时保留运行实例并阻止安装，避免误选旧 runtime。
+
+后续明确执行安装时，已设置 `USAGE_DATA_DIR` 的实例可创建最小 `panelPath` 配置。仅设置 `USAGE_DB_PATH`、又没有 `PANEL_PATH` 时会阻止创建配置，并提示先固定 `USAGE_DATA_DIR` 或 `PANEL_PATH`，避免改变隐含的数据和归档目录。已有 `PANEL_PATH` 时只更新它指向的页面，不创建配置文件。首次从内嵌页面切换仍需由维护者安排 Manager Server 重启，插件不会启动或重启服务。
+
+现场确认 `/root/.cli-proxy-api` 中 CommandCode 凭证存在、已启用，CPA 的原生额度 Provider 已注册。公网、Manager Server 18317 和 CPA 8317 返回相同的旧面板，缺少 CommandCode 原生额度/回调组件；页面文件存在或仅升级动态库均不能证明原生展示生效。本次未重启服务、未更改服务器文件。
 
 ## v0.2.5：插件内一键安装原生面板
 
 CPA 与 CPAMP Manager Server 直接运行在同一主机时：
 
-1. 在插件商店升级 CommandCodeBridge 至 v0.2.5，或安装对应平台动态库并重启 CPA。页面已内置到动态库，商店安装也能使用。
+1. 在插件商店升级 CommandCodeBridge 至 v0.2.6，或安装对应平台动态库并重启 CPA。页面已内置到动态库，商店安装也能使用。
 2. 打开插件控制台的「设置 → CPAMP 原生面板」，点击「安装原生面板」。默认查找 Linux 正在运行的 `cpa-manager-plus`、官方安装目录 `~/cpa-manager-plus` 及 `run.sh` 指向的 runtime。
 3. 首次从内嵌页面切换时，按原方式重启 **Manager Server**，返回点击「检查生效状态」，确认「原生面板已生效」。后续更新已配置的页面通常只需强制刷新浏览器。已有 `PANEL_PATH` 时直接更新它实际指向的页面。
 4. 原生凭证列表、卡片或详情额度页点击「刷新额度」，现有 API key 账号无需重新导入。OAuth 继续使用 v0.2.4 的浏览器电脑本地接收器。
@@ -72,13 +84,13 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.5`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。同机二进制的原生页面通过插件设置一键安装；浏览器电脑的接收器需从对应平台 ZIP 取出。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
+保存配置并按面板提示重载或重启，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.6`，点击安装。安装器自动选择 ZIP、验证校验值、写入插件目录并保存配置。同机二进制的原生页面通过插件设置一键安装；浏览器电脑的接收器需从对应平台 ZIP 取出。随后核实插件启用，按下方验收步骤添加 Studio key 和模型。
 
 GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上面的 JSON 链接。若当前面板没有源配置入口，可通过 CPA 配置文件添加。服务器需能访问 `raw.githubusercontent.com`、`api.github.com` 和 GitHub 下载地址；无法访问时检查现有 CPA 全局代理。
 
 ## 手动下载安装包
 
-从 [v0.2.5 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.5) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。动态库按 CPA 服务器平台选择；本地接收器按浏览器电脑平台选择，两者可能不同。
+从 [v0.2.6 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.6) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。动态库按 CPA 服务器平台选择；本地接收器按浏览器电脑平台选择，两者可能不同。
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |
