@@ -1,5 +1,11 @@
 # CPAMP 原生凭证集成
 
+## 原生窗口功能（当前源码）
+
+CommandCode 详情额度页复用 CPAMP 原生窗口卡片，支持当前与上个窗口的请求统计、预测和周期快照。列表保留左侧 5h／周、右侧月额度的简洁布局。
+
+本功能兼容 v0.2.7 插件，但 v0.2.7 发布包中的页面尚未包含它。请应用当前适配脚本构建页面；完整周期快照还需基于现有 Manager Server 的同一源码版本重建二进制并重启。脚本新增的服务器改动仅为快照平台名单，不修改数据库结构。
+
 ## v0.2.7 推荐入口
 
 同机直接运行二进制时，升级插件后进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server，再点击「检查生效状态」。插件动态库内置匹配版本页面，自动探测运行实例和官方默认 `~/cpa-manager-plus`，无需单独下载管理页面或手动设置环境变量。
@@ -61,7 +67,7 @@ Manager Server 运行用户必须能读取页面。**配置文件打不开时服
 python3 verify_cpamp_panel.py https://cpa.gdp.pw/management.html --expected '/实际绝对路径/management.html'
 ```
 
-应显示 `native_quota: PASS`、`native_callback: PASS`、`post_receiver_instructions: PASS` 和 `expected_page: MATCH`。脚本只读且不需要管理密钥。未通过时检查运行进程的 `PANEL_PATH`、读取权限、代理目标和缓存；确认后再强刷浏览器。
+应显示 `native_quota: PASS`、`native_window_history: PASS`、`native_callback: PASS`、`post_receiver_instructions: PASS` 和 `expected_page: MATCH`。脚本只读且不需要管理密钥。未通过时检查运行进程的 `PANEL_PATH`、读取权限、代理目标和缓存；确认后再强刷浏览器。
 
 Docker Compose 示例仅表示需要合并到现有 **Manager Server 服务**的两项；服务名和宿主目录应替换为现场实际值，并保留原有镜像、环境变量、端口和数据卷：
 
@@ -98,7 +104,10 @@ loopback 指浏览器所在电脑。CPA 不需要监听 `45879`，无需开放�
 - 原生凭证额度区不展示套餐、credits 明细、窗口说明、更新时间或「月上限未知」提示。月额度固定占据右侧：有真实 `monthly` 窗口时显示其百分比和重置时间；没有有效比例时显示「—」，重置时间可取真实订阅周期结束时间，不估算月百分比。详细 credits 和月额度信息仍可在插件控制台查看。
 - 打开页面不主动访问上游；点击刷新才查询。网格、列表和详情共享当前内存结果，不把账户余额写到浏览器存储。切换 CPA、管理登录或凭证版本会隔离旧结果。
 - 查询失败保留上次观察并标记过期；部分成功只发布本次成功的字段。单个模型无权限不影响账户额度查询。
-- 此补丁添加原生展示和刷新，不改变现有 Codex 调度、全局额度排序/筛选或历史快照数据库。
+- CommandCode 已接入原生额度刷新、套餐与余量状态、排序/筛选、详情窗口卡片、历史窗口查询及原生快照持久化。列表仍使用简洁的左右两区布局；详情使用 CPAMP 的标准窗口卡片，显示上个窗口、当前窗口的请求数、tokens、预估花费和成功率，以及符合原生条件时的窗口预测。
+- 原生额度查询成功后补充读取插件现有的脱敏凭证列表，取得实际观察时间和订阅起止时间；兼容已安装的 v0.2.7 插件。5h/周窗口起点由真实重置时间减去对应窗口时长得到，月窗口取真实订阅周期。月上限缺失时百分比仍为「—」，不能用剩余 credits 推算；上个月的边界仅采用已记录的周期。没有匹配历史时使用原生空值展示；花费为 CPAMP 历史请求的价格估算，不将 CommandCode credits 换算成美元。
+- 额度缓存按 CPA 地址、管理登录和凭证版本隔离，只保留内存状态；失败结果不会作为新快照写入，不使用过期比例预测。CPA 返回的 `missing provider baseURL` 属于本地路由配置错误，即使其 HTTP 状态是 401，也不能据此要求重新登录；历史失败记录保留在诊断页。
+- 持久化周期需要 Manager Server 的 `quotasnapshot.validProviders` 接受 `commandcode`。适配脚本同时修改前端查询名单和服务器名单，并复制 SQLite 持久化及凭证隔离回归测试。仅替换 HTML 可显示实时额度和历史请求；完整快照功能需按当前服务器的同一源码版本重建 Manager Server、备份二进制后替换并重启。此补丁不修改数据库结构；先在 `apps/manager-server` 运行 `go test ./internal/service/quotasnapshot -run TestCommandCode -count=1`。正式 v0.2.7 发布包未包含这次修复，请使用本次源码构建。
 - 原生登录 state 十分钟过期、单次消费；key 先经只读 whoami 验证，再由 CPA 保存到 auth-dir。手动回退接口需要管理鉴权。
 - 官方回调凭证在 POST 正文。接收器只监听 IPv4 loopback，校验官网 Origin、Host、本次 state、重复字段、有效期和单次消费；结果仅存内存，十分钟后清除，进程十五分钟自动退出。不保存文件、不向远端自动转发、不读取 CPA 管理密钥。
 - 接收器的复制结果包含 API key，请勿分享。浏览器地址栏只含 state；接收器与 CPAMP 输入框遮蔽结果。CPAMP 提交成功后清空，不写入浏览器存储；远端提交使用 POST 正文。插件校验 loopback 地址、固定路径/端口、state、重复参数、有效期和单次消费，API key 先经只读 whoami 验证。

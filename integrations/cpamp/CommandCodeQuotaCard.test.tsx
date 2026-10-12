@@ -2,10 +2,11 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandCodeQuotaCard } from './CommandCodeQuotaCard';
 import { QuotaProgressBar } from './QuotaProgressBar';
+import { getCommandCodeQuota, refreshCommandCodeQuota } from './commandCodeQuotaStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-const mocks = vi.hoisted(() => ({ post: vi.fn(), store: { apiBase: 'https://panel.example', managementKey: 'fixture-manager-key', connectionStatus: 'connected' } }));
-vi.mock('@/services/api/client', () => ({ apiClient: { post: mocks.post }, createScopedApiRequestConfig: (scope: unknown) => ({ scope }) }));
+const mocks = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn(), store: { apiBase: 'https://panel.example', managementKey: 'fixture-manager-key', connectionStatus: 'connected' } }));
+vi.mock('@/services/api/client', () => ({ apiClient: { post: mocks.post, get: mocks.get }, createScopedApiRequestConfig: (scope: unknown) => ({ scope }) }));
 vi.mock('@/stores', () => ({ useAuthStore: (selector: (state: typeof mocks.store) => unknown) => selector(mocks.store) }));
 vi.mock('react-i18next', async (importOriginal) => ({ ...await importOriginal<typeof import('react-i18next')>(), useTranslation: () => ({ i18n: { language: 'zh-CN' } }) }));
 const file = { id: 'fixture-commandcode', name: 'fixture.json', authIndex: 'fixture-index', provider: 'commandcode' };
@@ -23,6 +24,26 @@ const button = (renderer: ReactTestRenderer) => renderer.root.findByProps({ 'ari
 
 describe('CommandCode native credential quotas', () => {
   afterEach(() => { vi.restoreAllMocks(); });
+  it('deduplicates native refreshes and scopes late responses to the original credential and connection', async () => {
+    const scope = { apiBase: 'https://isolated.example', managementKey: 'fixture-scoped-key' };
+    const original = { ...file, id: 'fixture', name: 'fixture.json' };
+    const changed = { ...original, authIndex: 'replacement-index', modified: 456 };
+    let finish!: (value: typeof quota) => void;
+    mocks.post.mockReset(); mocks.get.mockReset();
+    mocks.post.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    mocks.get.mockResolvedValueOnce({ credentials: [{ id: 'fixture', usage: { status: 'ok',
+      checked_at: '2026-10-12T00:00:00Z', subscription_start: '2026-10-02T00:00:00Z', subscription_end: '2026-11-02T00:00:00Z' } }] });
+    const first = refreshCommandCodeQuota(original, scope);
+    const second = refreshCommandCodeQuota(original, scope);
+    expect(first).toBe(second);
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+    finish(quota); await first;
+    expect(getCommandCodeQuota(original, scope).usage?.subscription_start).toBe('2026-10-02T00:00:00Z');
+    expect(getCommandCodeQuota(changed, scope).data).toBeUndefined();
+    expect(getCommandCodeQuota(original, { ...scope, apiBase: 'https://different.example' }).data).toBeUndefined();
+    expect(getCommandCodeQuota(original, { ...scope, managementKey: 'different-login' }).data).toBeUndefined();
+    expect(mocks.get).toHaveBeenCalledWith('/commandcodebridge/credentials', expect.objectContaining({ scope }));
+  });
   it('refreshes explicitly, shares observations with the drawer, preserves failures and scopes credential versions', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-12T00:00:00Z'));
     mocks.post.mockReset();

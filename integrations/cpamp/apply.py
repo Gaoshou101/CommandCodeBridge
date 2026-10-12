@@ -20,9 +20,36 @@ tab = root / 'apps/web/src/features/accounts/components/accountDetail/AccountQuo
 oauth = root / 'apps/web/src/services/api/oauth.ts'
 oauth_page = root / 'apps/web/src/features/oauth/OAuthPage.tsx'
 oauth_page_test = root / 'apps/web/src/features/oauth/OAuthPage.test.tsx'
+model = root / 'apps/web/src/features/accounts/model'
+constants = root / 'apps/web/src/features/authFiles/constants.ts'
 changes = {
     accounts: [
         ("import { Button } from '@/components/ui/Button';", "import { Button } from '@/components/ui/Button';\nimport { CommandCodeQuotaCard } from './components/CommandCodeQuotaCard';"),
+        ("import { CommandCodeQuotaCard } from './components/CommandCodeQuotaCard';", "import { CommandCodeQuotaCard } from './components/CommandCodeQuotaCard';\nimport { getCommandCodeQuota, refreshCommandCodeQuota, useCommandCodeQuotaRevision } from './components/commandCodeQuotaStore';\nimport { applyCommandCodeQuotaToRow, buildCommandCodeQuotaWindows } from './model/commandCodeQuotaWindows';"),
+        ("export function AccountsPage() {", "export function AccountsPage() {\n  const commandCodeQuotaRevision = useCommandCodeQuotaRevision();"),
+        ('credentialStatusBoundaries\n      ),', 'credentialStatusBoundaries\n      ).map(row => applyCommandCodeQuotaToRow(row, getCommandCodeQuota(row.raw, authFilesRequestScope))),'),
+        ('      accountQuotaOverrides,\n      baseQuotaStores,\n      files,', '      accountQuotaOverrides,\n      commandCodeQuotaRevision,\n      authFilesRequestScope,\n      baseQuotaStores,\n      files,'),
+        ('      switch (row.provider) {\n        case CODEX_CONFIG.type: {\n          const state = getActiveCodexQuota(row.raw);', '''      switch (row.provider) {
+        case 'commandcode': {
+          const state = getCommandCodeQuota(row.raw, authFilesRequestScope);
+          if (state.data && !state.error && !state.pending) fetchedAtMs = state.observedAtMs;
+          inventoryMode = 'partial';
+          break;
+        }
+        case CODEX_CONFIG.type: {
+          const state = getActiveCodexQuota(row.raw);'''),
+        ('[baseQuotaStores, getActiveCodexQuota, getCredentialEvidenceBoundary]', '[baseQuotaStores, commandCodeQuotaRevision, authFilesRequestScope, getActiveCodexQuota, getCredentialEvidenceBoundary]'),
+        ('(row: AccountRow): AccountQuotaDisplayWindow[] => {\n      return buildAccountQuotaDisplayWindows', "(row: AccountRow): AccountQuotaDisplayWindow[] => {\n      if (row.provider === 'commandcode') return buildCommandCodeQuotaWindows(getCommandCodeQuota(row.raw, authFilesRequestScope));\n      return buildAccountQuotaDisplayWindows"),
+        ('[baseQuotaStores, getDisplayCodexQuota, t, translateQuotaWindowLabel]', '[baseQuotaStores, commandCodeQuotaRevision, authFilesRequestScope, getDisplayCodexQuota, t, translateQuotaWindowLabel]'),
+        ('        quotaRevision: accountQuotaRefreshRevision,', '        quotaRevision: accountQuotaRefreshRevision,\n        commandCodeQuotaRevision,'),
+        ('      accountQuotaRefreshRevision,\n      featureAvailability.checking,', '      accountQuotaRefreshRevision,\n      commandCodeQuotaRevision,\n      featureAvailability.checking,'),
+        ("      switch (row.provider) {\n        case CODEX_CONFIG.type: {\n          // Any quota refresh", """      switch (row.provider) {
+        case 'commandcode': {
+          const state = await refreshCommandCodeQuota(row.raw, authFilesRequestScope);
+          return state.error ? { status: 'error', error: state.error } : state.data ? { status: 'success' } : { status: 'ignored' };
+        }
+        case CODEX_CONFIG.type: {
+          // Any quota refresh"""),
         ('{ctx.mainListWindows.length > 0 ? (\n                      <div className={styles.accountGridCardQuotaList}>', "{row.provider === 'commandcode' ? (\n                      <CommandCodeQuotaCard file={row.raw} compact />\n                    ) : ctx.mainListWindows.length > 0 ? (\n                      <div className={styles.accountGridCardQuotaList}>"),
         ('className={styles.accountGridCardQuota}\n                    title={ctx.quotaWindowTitle}\n                    role={isSelectionMode ? undefined : \'button\'}\n                    tabIndex={isSelectionMode ? undefined : 0}', "className={styles.accountGridCardQuota}\n                    title={row.provider === 'commandcode' ? undefined : ctx.quotaWindowTitle}\n                    role={isSelectionMode || row.provider === 'commandcode' ? undefined : 'button'}\n                    tabIndex={isSelectionMode || row.provider === 'commandcode' ? undefined : 0}"),
         ('const resetCreditsAriaSuffix =\n                      ctx.hasCodexResetCredits', "if (row.provider === 'commandcode') {\n                      return <div className={styles.accountCardBusiness}><CommandCodeQuotaCard file={row.raw} compact /></div>;\n                    }\n                    const resetCreditsAriaSuffix =\n                      ctx.hasCodexResetCredits"),
@@ -32,7 +59,40 @@ changes = {
         ("import { Button } from '@/components/ui/Button';", "import { Button } from '@/components/ui/Button';\nimport type { AuthFileItem } from '@/types';\nimport { CommandCodeQuotaCard } from '../CommandCodeQuotaCard';"),
         ('interface AccountQuotaTabProps {', 'interface AccountQuotaTabProps {\n  commandCodeFile?: AuthFileItem;'),
         ('export function AccountQuotaTab({\n  detailView,', 'export function AccountQuotaTab({\n  detailView,\n  commandCodeFile,'),
-        ('<div className={styles.quotaTab} data-account-quota-tab="true">', '<div className={styles.quotaTab} data-account-quota-tab="true">\n      {detailView.identity.provider === \'commandcode\' && commandCodeFile && <CommandCodeQuotaCard file={commandCodeFile} />}'),
+        ('<div className={styles.quotaTab} data-account-quota-tab="true">', '<div className={styles.quotaTab} data-account-quota-tab="true" data-commandcode-native-windows={detailView.identity.provider === \'commandcode\' ? \'true\' : undefined}>'),
+        ('<div className={styles.quotaTabActions}>', '<div className={styles.quotaTabActions}>\n          {detailView.identity.provider === \'commandcode\' && commandCodeFile && <CommandCodeQuotaCard file={commandCodeFile} refreshOnly />}'),
+    ],
+    constants: [
+        ("'xai' | 'devin' | 'meta';", "'xai' | 'devin' | 'meta' | 'commandcode';"),
+        ("  'meta',\n]);", "  'meta',\n  'commandcode',\n]);"),
+    ],
+    model / 'accountQuotaDisplayWindows.ts': [
+        ("  | 'summary';", "  | 'summary'\n  | 'commandcode';"),
+    ],
+    model / 'accountHealthEvidence.ts': [
+        ("  if (statusCode === 401) return 'credential_failure';", "  // CPA reports local routing configuration errors as 401; reauthentication cannot fix them.\n  if (/\\bmissing provider baseurl\\b/.test(failureText)) return 'neutral';\n  if (statusCode === 401) return 'credential_failure';"),
+    ],
+    model / 'accountHealthEvidence.test.ts': [
+        ("const makeRequest = (", """it('does not treat a local provider configuration error as an expired credential', () => {
+  expect(classifyAccountRequestEvidence({ timestamp_ms: 2000, failed: true, fail_status_code: 401,
+    fail_summary: 'missing provider baseURL' })).toBe('neutral');
+  expect(classifyAccountRequestEvidence({ timestamp_ms: 2000, failed: true, fail_status_code: 401,
+    fail_summary: 'invalid API key' })).toBe('credential_failure');
+});
+
+const makeRequest = ("""),
+    ],
+    model / 'accountQuotaWindowDefinitions.ts': [
+        ("  ranges.push({\n    period: 'previous',\n    fromMs: definition.cycleStartMs - durationMs,", "  // A calendar billing period does not establish the preceding period's length.\n  // Use a recorded previous cycle when available instead of inventing its dates.\n  if (definition.provider === 'commandcode' && definition.windowMode === 'calendar') {\n    return ranges.filter(isValidUsageRange);\n  }\n  ranges.push({\n    period: 'previous',\n    fromMs: definition.cycleStartMs - durationMs,"),
+    ],
+    model / 'accountQuotaSnapshots.ts': [
+        ("['codex', 'claude', 'antigravity', 'kimi', 'xai', 'devin', 'meta'].includes(row.provider)", "['codex', 'claude', 'antigravity', 'kimi', 'xai', 'devin', 'meta', 'commandcode'].includes(row.provider)"),
+    ],
+    model / 'accountQuotaWindowUsagePresentation.ts': [
+        ('  const canForecastCurrentWindow =\n    !hasLifecycleEvidence || (currentForecastEligible && window.stale !== true);', "  const canForecastCurrentWindow =\n    !(row.provider === 'commandcode' && row.quota.status === 'error') &&\n    (!hasLifecycleEvidence || (currentForecastEligible && window.stale !== true));"),
+    ],
+    root / 'apps/manager-server/internal/service/quotasnapshot/service.go': [
+        ('validProviders      = stringSet("codex", "claude", "antigravity", "kimi", "xai", "devin", "meta")', 'validProviders      = stringSet("codex", "claude", "antigravity", "kimi", "xai", "devin", "meta", "commandcode")'),
     ],
     oauth: [
         ("import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';", "import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';\nimport { normalizeApiBase } from '@/utils/connection';"),
@@ -114,6 +174,8 @@ for path, replacements in changes.items():
     # CPAMP's table detail button. Keep CommandCode outside that trigger.
     if path == accounts:
         text = text.replace("{row.provider === 'commandcode' ? (\n                          <CommandCodeQuotaCard file={row.raw} compact />\n                        ) : ctx.mainListWindows.length > 0 ? (\n                          ctx.mainListWindows.map", '{ctx.mainListWindows.length > 0 ? (\n                          ctx.mainListWindows.map')
+    if path == tab:
+        text = text.replace("\n      {detailView.identity.provider === 'commandcode' && commandCodeFile && <CommandCodeQuotaCard file={commandCodeFile} />}", '')
     for old, new in replacements:
         if new in text:
             continue
@@ -125,8 +187,11 @@ if not args.check:
     for path, text in prepared.items():
         path.write_text(text, encoding='utf-8', newline='\n')
     target = root / 'apps/web/src/features/accounts/components'
-    for name in ['CommandCodeQuotaCard.tsx', 'CommandCodeQuotaCard.module.scss', 'CommandCodeQuotaCard.test.tsx']:
+    for name in ['CommandCodeQuotaCard.tsx', 'CommandCodeQuotaCard.module.scss', 'CommandCodeQuotaCard.test.tsx', 'commandCodeQuotaStore.ts']:
         shutil.copy2(source / name, target / name)
+    for name in ['commandCodeQuotaWindows.ts', 'commandCodeQuotaWindows.test.ts']:
+        shutil.copy2(source / name, model / name)
+    shutil.copy2(source / 'commandcode_quota_test.go.fragment', root / 'apps/manager-server/internal/service/quotasnapshot/commandcode_quota_test.go')
     shutil.copy2(source / 'CommandCodeOAuth.test.ts', root / 'apps/web/src/services/api/CommandCodeOAuth.test.ts')
     shutil.copy2(source / 'commandCodeOAuth.ts', root / 'apps/web/src/services/api/commandCodeOAuth.ts')
 print('PASS: CPAMP native credential grid and quota detail integration' + (' compatibility check' if args.check else ' applied'))

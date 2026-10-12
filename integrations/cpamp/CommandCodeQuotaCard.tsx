@@ -1,69 +1,37 @@
-import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { IconRefreshCw } from '@/components/ui/icons';
-import { apiClient, createScopedApiRequestConfig } from '@/services/api/client';
 import { useAuthStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
 import { formatQuotaResetRelative } from '../model/accountsPagePresentation';
 import { QuotaProgressBar } from './QuotaProgressBar';
+import { refreshCommandCodeQuota, useCommandCodeQuota } from './commandCodeQuotaStore';
 import styles from './CommandCodeQuotaCard.module.scss';
 
-interface NativeQuota {
-  summary?: { key: string; value: number }[];
-  groups?: {
-    buckets?: { window?: string; remainingFraction: number; resetTime?: string }[];
-  }[];
-}
-interface QuotaState {
-  data?: NativeQuota;
-  pending?: boolean;
-  error?: string;
-}
-
-const empty: QuotaState = {};
-const cache = new Map<string, QuotaState>();
-const listeners = new Set<() => void>();
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
-};
-function update(key: string, state: QuotaState) {
-  if (cache.size >= 256 && !cache.has(key)) cache.delete(cache.keys().next().value!);
-  cache.set(key, state);
-  listeners.forEach(listener => listener());
-}
-
-export function CommandCodeQuotaCard({ file, compact = false }: { file: AuthFileItem; compact?: boolean }) {
+export function CommandCodeQuotaCard({ file, compact = false, refreshOnly = false }: { file: AuthFileItem; compact?: boolean; refreshOnly?: boolean }) {
   const { i18n } = useTranslation();
   const apiBase = useAuthStore(state => state.apiBase);
   const managementKey = useAuthStore(state => state.managementKey);
   const connectionStatus = useAuthStore(state => state.connectionStatus);
   const authIndex = String(file.authIndex ?? file.auth_index ?? '').trim();
-  // Endpoint, login and credential version all scope the in-memory observation.
-  // No tokens, balances or errors are written to browser storage.
-  const key = JSON.stringify([apiBase, managementKey, file.id, authIndex, file.name,
-    file.modified, file.updated_at, file.lastRefresh, file.disabled]);
-  const state = useSyncExternalStore(subscribe, () => cache.get(key) ?? empty, () => empty);
+  const scope = { apiBase, managementKey };
+  const state = useCommandCodeQuota(file, scope);
   const enabled = connectionStatus === 'connected' && Boolean(authIndex && managementKey) && !file.disabled;
   const number = (value: number) => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 0 }).format(value);
   const refresh = async () => {
-    if (!enabled || cache.get(key)?.pending) return;
-    const old = cache.get(key) ?? empty;
-    update(key, { ...old, pending: true, error: undefined });
-    try {
-      const data = await apiClient.post<NativeQuota>('/quota/fetch', { auth_index: authIndex, provider: 'commandcode' }, {
-        ...createScopedApiRequestConfig({ apiBase, managementKey }), timeout: 20000,
-      });
-      update(key, { data });
-    } catch {
-      update(key, { ...old, pending: false, error: old.data ? '刷新失败，上次结果已过期' : '刷新失败，请重试' });
-    }
+    if (enabled) await refreshCommandCodeQuota(file, scope);
   };
   const buckets = (state.data?.groups ?? []).flatMap(group => group.buckets ?? []);
+  if (refreshOnly) return <div data-commandcode-quota-refresh="true">
+    <Button variant="secondary" size="sm" loading={state.pending} disabled={!enabled}
+      onClick={() => void refresh()} aria-label="刷新 CommandCode 套餐额度">
+      {!state.pending && <IconRefreshCw size={15} />}刷新额度
+    </Button>
+    {state.error && <p role="alert">{state.error}</p>}
+  </div>;
   const renderWindow = (window: string, label: string) => {
     const bucket = buckets.find(item => item.window === window);
-    const remaining = bucket && Number.isFinite(bucket.remainingFraction)
+    const remaining = bucket && typeof bucket.remainingFraction === 'number' && Number.isFinite(bucket.remainingFraction)
       ? Math.max(0, Math.min(1, bucket.remainingFraction)) * 100 : null;
     // A subscription end can supply a reset date, never a made-up monthly cap.
     const subscriptionReset = window === 'monthly'
