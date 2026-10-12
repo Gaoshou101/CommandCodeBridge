@@ -101,6 +101,19 @@ with tempfile.TemporaryDirectory(prefix='commandcodebridge-real-cpamp-') as temp
                 active = host.call(API + '/cpamp/panel')
                 assert active['active'] and active['served_page']['native_quota'] and active['served_page']['matches']
                 assert host.call(API + '/cpamp/panel/install', {}).get('backups', []) == []
+                # A configured JSON panelPath also reads the file per request.
+                # Simulate an older external native page, then update in place.
+                manager_pid = process.pid
+                configured_page = pathlib.Path(saved['panelPath'])
+                previous_page = b'<html data-commandcode-native-quota="true">prior release</html>'
+                configured_page.write_bytes(previous_page)
+                assert page() == previous_page
+                ready = host.call(API + '/cpamp/panel')
+                assert ready['hot_update_ready'] and not ready['restart_required']
+                result = host.call(API + '/cpamp/panel/install', {})
+                assert result['active'] and not result['restart_required'] and page() == intended
+                assert process.pid == manager_pid and process.poll() is None
+                assert json.loads(config.read_text()) == saved
                 # Existing PANEL_PATH is authoritative and read on every request.
                 # Replace its page without pretending JSON can override the env.
                 stop()
@@ -114,6 +127,6 @@ with tempfile.TemporaryDirectory(prefix='commandcodebridge-real-cpamp-') as temp
                     assert json.loads(config.read_text()) == saved
                 host.call(API + '/config', {'cpamp_install_dir': ''}, method='PUT')
             assert 'fixture-manager-admin-key' not in (root / 'manager.log').read_text()
-            print('PASS: real CPA -> native CPAMP discovery (' + ('environment-only' if args.environment_only else 'config file') + ') -> bundled panel/config preservation -> isolated manager restart -> exact HTTP page; existing PANEL_PATH hot replacement')
+            print('PASS: real CPA -> native CPAMP discovery (' + ('environment-only' if args.environment_only else 'config file') + ') -> bundled panel/config preservation -> initial manager restart -> exact HTTP page; JSON panelPath and PANEL_PATH hot replacement with unchanged Manager PID')
         finally:
             stop()

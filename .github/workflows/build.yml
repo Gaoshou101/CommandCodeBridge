@@ -45,6 +45,11 @@ jobs:
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_e2e.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_native_management.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_reliability.py
+          gh release download v0.2.6 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.6_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
+          cd /tmp/bridge-previous
+          sha256sum --check --ignore-missing checksums.txt
+          cd "$GITHUB_WORKSPACE"
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.6_linux_amd64.zip
           mkdir -p /tmp/cpamp-test
           gh release download v1.14.0 --repo seakee/CPA-Manager-Plus --pattern cpa-manager-plus_v1.14.0_linux_amd64.tar.gz --pattern checksums.txt --dir /tmp/cpamp-test
           cd /tmp/cpamp-test
@@ -123,6 +128,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows native management integration failed' }
           python tests/cpa_reliability.py
           if ($LASTEXITCODE -ne 0) { throw 'Windows reliability integration failed' }
+          python tests/cpa_hot_reload.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows live configuration integration failed' }
       - name: ARM64 native host integration
         if: matrix.target == 'linux-arm64' || matrix.target == 'darwin-arm64'
         shell: bash
@@ -150,6 +157,7 @@ jobs:
           python tests/cpa_e2e.py
           python tests/cpa_native_management.py
           python tests/cpa_reliability.py
+          python tests/cpa_hot_reload.py
       - uses: actions/upload-artifact@v4
         with:
           name: commandcodebridge-${{ matrix.target }}

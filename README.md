@@ -1,6 +1,6 @@
 # CommandCodeBridge
 
-接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.6`；C ABI 1 / RPC schema 6。
+接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.7`；C ABI 1 / RPC schema 6。
 
 ## 功能
 
@@ -28,7 +28,7 @@
 
 1. 解压 ZIP，将 `commandcodebridge.so`（Windows：`.dll`；macOS：`.dylib`）复制到 CPA `plugins.dir`。
 2. 将 [config.example.yaml](config.example.yaml) 合并至 CPA 配置，调整目录。首次 `models` 留空。
-3. 重启 CPA，确认 `plugin loaded plugin_id=commandcodebridge`，且无 `invalid metadata or no capabilities`。
+3. 让支持插件热重载的 CPA 重新加载配置，确认运行版本和 `plugin loaded plugin_id=commandcodebridge`，且无 `invalid metadata or no capabilities`。旧宿主或直接覆盖正在加载的库时需停机重启；推荐通过插件商店使用版本化文件升级。
 4. 打开 `http://你的CPA地址:端口/v0/resource/plugins/commandcodebridge/console`。
 5. 用 **CPA 管理密钥**登录，在「凭据与用量」添加 CommandCode Studio API key，在「模型映射」获取目录并选择导入。
 6. 客户端使用 CPA API 地址、**CPA 客户端密钥**和模型别名，默认去掉供应商前缀，例如 `glm-5.3-flash`、`deepseek-v4.1-flash`。
@@ -40,6 +40,8 @@
 `0.2.5` 将新版 CPAMP 页面内置到插件动态库。**同机二进制部署**只需进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server 并检查生效状态。自动识别 Linux 运行实例、官方默认 `~/cpa-manager-plus` 与活动 runtime；自定义目录可在同处或插件配置项 `cpamp_install_dir` 修改。安装会备份原文件、写入页面并配置 `panelPath`，不需要另下载页面或手动 export。已有 `PANEL_PATH` 时更新其指向的文件。现有 API key 账号无需重新添加，页面更新后点击「刷新额度」。CPA 与 Manager Server 分处不同主机/容器时，仍需在 Manager Server 所在主机安装页面；步骤见 [部署说明](docs/DEPLOYMENT.md)。
 
 `0.2.6` 修复 Linux CPAMP 环境变量部署没有 `config.json` 时误报「未找到同机 CPAMP」。检测显示真实 PID、配置来源与实际服务页面的原生额度组件状态，检查过程不创建文件。执行安装时才创建必要配置；已有 `PANEL_PATH` 的页面更新不需要重启。首次从内嵌页面切换仍需由维护者安排 Manager Server 重启。
+
+`0.2.7` 精简原生额度为左侧 5h / 周额度上下两排、右侧月额度单列。**日常配置保存立即生效，无需重启**；已启用外部页面后，点击「更新原生面板」原路径热替换，强刷浏览器即可。插件二进制升级由支持热升级的 CPA 宿主加载版本化文件；首次修改 Manager Server 的面板路径或迁移插件数据目录仍需重启。详情见[热更新边界](docs/DEPLOYMENT.md#v027热更新与重启边界)。
 
 Docker 应持久化以下目录，以及现有 CPA auth-dir：
 
@@ -95,7 +97,7 @@ Go ≥1.26、CGO、目标平台 C 编译器：
 先构建并打包匹配版本的 CPAMP 前端（见 [前端适配说明](integrations/cpamp/README.md)），再生成插件内置页面。开发测试可不含页面，发布构建必须包含：
 
 ```bash
-python3 scripts/embed_cpamp_panel.py dist/commandcodebridge_0.2.6_cpamp-web.zip
+python3 scripts/embed_cpamp_panel.py dist/commandcodebridge_0.2.7_cpamp-web.zip
 CGO_ENABLED=1 go build -trimpath -buildvcs=false -buildmode=c-shared \
   -ldflags="-s -w" -o dist/commandcodebridge.so ./cmd/commandcodebridge
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" \
