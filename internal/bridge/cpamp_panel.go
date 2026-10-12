@@ -49,6 +49,7 @@ type nativePanelStatus struct {
 	Candidates        []string         `json:"candidates,omitempty"`
 	Backups           []string         `json:"backups,omitempty"`
 	Installable       bool             `json:"installable"`
+	HotUpdateReady    bool             `json:"hot_update_ready"`
 	ServedPage        panelObservation `json:"served_page"`
 }
 
@@ -374,14 +375,20 @@ func panelStatus(c Config, targets []*nativePanelTarget, content []byte) nativeP
 		}
 	}
 	status.Installable = len(content) > 0
+	installedHash := ""
 	if data, e := os.ReadFile(status.PanelPath); e == nil {
 		status.Installed = bytes.Equal(data, content) && len(content) > 0
+		sum := sha256.Sum256(data)
+		installedHash = hex.EncodeToString(sum[:])
 	}
 	status.ServedPage = observePanel(status.nativePanelTarget, content)
+	// A configured path alone does not prove the running Manager loaded it.
+	// Confirm the existing native page is being served before promising a hot update.
+	status.HotUpdateReady = status.panelEnvironment != "" || (!status.RestartRequired && status.ServedPage.NativeQuota && status.ServedPage.SHA256 == installedHash && installedHash != "")
 	status.Active = status.ServedPage.Matches
 	if status.Active {
 		status.RestartRequired = false
-		status.Message = "原生面板已生效，刷新浏览器后可使用"
+		status.Message = "原生面板已生效，刷新浏览器后可使用；原路径更新页面无需重启 Manager Server"
 	} else if status.Installed {
 		status.RestartRequired = true
 		status.Message = "面板文件已安装，请重启 Manager Server 后检查生效状态"
@@ -393,6 +400,9 @@ func panelStatus(c Config, targets []*nativePanelTarget, content []byte) nativeP
 		status.Message = "已找到 CPAMP，点击安装即可写入内置原生面板并配置 panelPath"
 		if status.panelEnvironment != "" {
 			status.Message = "已找到运行中 CPAMP 的 PANEL_PATH，安装将更新它指向的页面，无需创建配置文件或重启 Manager Server"
+		} else if status.HotUpdateReady {
+			status.RestartRequired = false
+			status.Message = "当前外部原生面板已启用，点击更新即可热替换页面，无需重启 Manager Server"
 		} else if !status.ConfigExists {
 			status.Message = "已找到通过环境变量运行的 CPAMP，config.json 不存在属正常情况；安装会创建最小面板配置，首次生效需重启 Manager Server"
 		}
@@ -474,7 +484,11 @@ func installNativePanel(c Config) (any, error) {
 	next := inspectNativePanel(c)
 	next.Backups = backups
 	if !next.Active {
-		if next.panelEnvironment == "" {
+		if status.HotUpdateReady {
+			next.HotUpdateReady = true
+			next.RestartRequired = false
+			next.Message = "已更新原路径的面板文件，但 HTTP 核验未通过；请检查监听地址和页面读取权限后重试"
+		} else if next.panelEnvironment == "" {
 			next.RestartRequired = true
 			next.Message = "面板与配置已写入，原有文件已备份。请重启 Manager Server，然后点击检查生效状态"
 		}

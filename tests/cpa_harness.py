@@ -22,7 +22,7 @@ class MockServer(ThreadingHTTPServer):
 
 
 class CPAHost:
-    def __init__(self, handler=None, base_url=None, timeout=10, proxy_url=None):
+    def __init__(self, handler=None, base_url=None, timeout=10, proxy_url=None, library=None, expected_version=VERSION):
         self.temp = tempfile.TemporaryDirectory(prefix="commandcodebridge-host-")
         self.folder = pathlib.Path(self.temp.name)
         self.auth = self.folder / "auth"
@@ -30,7 +30,8 @@ class CPAHost:
         self.auth.mkdir()
         plugins = self.folder / "plugins"
         plugins.mkdir()
-        library = pathlib.Path(os.environ.get("BRIDGE_LIBRARY", ROOT / "dist" / "commandcodebridge.so"))
+        library = pathlib.Path(library or os.environ.get("BRIDGE_LIBRARY", ROOT / "dist" / "commandcodebridge.so"))
+        self.expected_version = expected_version
         if not library.is_file():
             self.temp.cleanup()
             raise FileNotFoundError("Set BRIDGE_LIBRARY to a built native plugin")
@@ -82,7 +83,7 @@ plugins:
             if self.process.poll() is not None:
                 raise AssertionError("CPA exited before plugin became ready")
             try:
-                if self.call(API + "/status")["version"] == VERSION:
+                if self.call(API + "/status")["version"] == self.expected_version:
                     return self
             except (OSError, urllib.error.HTTPError):
                 pass

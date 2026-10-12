@@ -1,6 +1,15 @@
-# CommandCodeBridge v0.2.2
+# CommandCodeBridge v0.2.7
 
 CPA 原生插件；C ABI 1 / RPC schema 6。官方 Provider API 路线，Go 订阅 `/alpha/generate` 不在当前范围。
+
+## v0.2.7（2026-10-12）
+
+- 原生凭证额度改为左侧 5h、周额度上下两排，右侧月额度单列居中。移除套餐、credits 明细、窗口说明和更新时间；仅保留标签、剩余百分比、进度条及重置时间。
+- 月额度优先显示真实 `monthly` 窗口；没有有效比例时显示「—」，重置时间可用实际订阅周期结束日期，不推算月上限。
+- 明确配置保存即时生效；检测已经启用的外部页面，提供「更新原生面板」，更新同一路径不需要重启 Manager Server。
+- 验证配置与版本化插件热重载、无效配置拒绝、凭证/模型/记账保留，以及 JSON `panelPath` 和 `PANEL_PATH` 原路径热替换。首次切换 Manager Server 页面路径、迁移数据目录或旧宿主仍需重启。
+
+安装时优先通过支持热升级的 CPA 插件商店升级，确认运行版本为 `0.2.7`，再从插件设置更新原生面板并强刷浏览器。四平台动态库与 CPAMP 前端发布包包含校验文件及构建来源。目标服务器部署由维护者执行。
 
 ## v0.2.2（2026-10-11）
 
@@ -29,9 +38,9 @@ CPA 原生插件；C ABI 1 / RPC schema 6。官方 Provider API 路线，Go 订�
 
 提供 Linux amd64/arm64、Windows amd64、macOS arm64 ZIP，各附 SHA256 和包内 `BUILD.json`。选择匹配宿主的平台，按照 [部署说明](https://github.com/Gaoshou101/CommandCodeBridge/blob/main/docs/DEPLOYMENT.md) 安装、备份及回滚。Linux 包要求 glibc ≥2.34；Alpine/musl 需另行构建。需要带插件支持的 CPA，已验证 v8.0.23。
 
-仓库已公开。CPA / CPAMP 链接安装使用 [插件源 registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)，Release 提供安装器要求的 `commandcodebridge_0.2.2_<系统>_<架构>.zip` 和 `checksums.txt`。
+仓库已公开。CPA / CPAMP 链接安装使用 [插件源 registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)，Release 提供安装器要求的 `commandcodebridge_0.2.7_<系统>_<架构>.zip` 和 `checksums.txt`。
 
-原生凭证余量显示需同时更新插件和面板。下载 `commandcodebridge_0.2.2_cpamp-web.zip`，解压后通过 Manager Server 的 `PANEL_PATH` 托管 `management.html`；面板基于 CPAMP `dbf61dd`，不同服务端版本请在对应源码上应用补丁构建。
+原生凭证余量显示需同时更新插件和面板。下载 `commandcodebridge_0.2.7_cpamp-web.zip`，解压后通过 Manager Server 的 `PANEL_PATH` 托管 `management.html`；面板基于 CPAMP `dbf61dd`，不同服务端版本请在对应源码上应用补丁构建。
 
 ## 已实现
 

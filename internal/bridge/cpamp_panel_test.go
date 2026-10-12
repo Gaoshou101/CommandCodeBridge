@@ -436,6 +436,47 @@ func TestNativePanelActivation(t *testing.T) {
 	}
 }
 
+func TestNativePanelConfiguredPageHotUpdate(t *testing.T) {
+	root := t.TempDir()
+	config := nativeFixture(t, root)
+	old := []byte(`<html data-commandcode-native-quota="true">old release</html>`)
+	next := []byte(`<html data-commandcode-native-quota="true">new release</html>`)
+	target, err := readPanelTarget(config, root, "fixture", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = applyNativePanel(target, old); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, target.PanelPath)
+	}))
+	defer server.Close()
+	target, err = readPanelTarget(config, root, "fixture", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	target.address = strings.TrimPrefix(server.URL, "http://")
+	status := panelStatus(Config{}, []*nativePanelTarget{target}, next)
+	if status.Active || status.Installed || !status.HotUpdateReady || status.RestartRequired || !strings.Contains(status.Message, "热替换") {
+		t.Fatalf("existing configured page not recognized for hot update: %+v", status)
+	}
+	before, _ := os.ReadFile(config)
+	if _, err = applyNativePanel(target, next); err != nil {
+		t.Fatal(err)
+	}
+	status = panelStatus(Config{}, []*nativePanelTarget{target}, next)
+	after, _ := os.ReadFile(config)
+	if !status.Active || !status.HotUpdateReady || status.RestartRequired || !bytes.Equal(before, after) {
+		t.Fatal("same-path page update required restart or changed config")
+	}
+	// A matching file alone is not proof that a process serves it.
+	target.address = "127.0.0.1:1"
+	if panelStatus(Config{}, []*nativePanelTarget{target}, next).HotUpdateReady {
+		t.Fatal("unreachable configured listener advertised proven hot update")
+	}
+}
+
 func TestNativePanelSettingsAndEmbeddedPage(t *testing.T) {
 	service := NewService()
 	service.cfg.DataDir = t.TempDir()

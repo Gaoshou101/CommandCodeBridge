@@ -1,32 +1,64 @@
 .card {
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--color-border, var(--gray-200));
-  border-radius: 8px;
-  background: var(--color-surface, var(--bg-primary));
+  width: 100%;
   p { margin: 0; font-size: 12px; color: var(--text-secondary); }
-  small { font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; }
 }
-.compact { padding: 12px; gap: 10px; }
+.windows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+.shortWindows { display: grid; gap: 16px; min-width: 0; }
+.compact .shortWindows { gap: 12px; }
+.monthlyWindow {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding-left: 16px;
+  border-left: 1px solid var(--accounts-border, var(--border-color));
+}
 .heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  strong { overflow-wrap: anywhere; }
-  button { flex-shrink: 0; }
+  min-width: 0;
 }
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 12px;
-  &:empty { display: none; }
-  > div { display: grid; gap: 5px; }
-  span { font-size: 11px; color: var(--text-secondary); }
-  strong { font-size: 15px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.label {
+  min-width: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--accounts-border, var(--border-color));
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
-.window { display: grid; gap: 7px; }
-.card .error { color: var(--color-danger, #dc2626); }
+.remaining {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  strong { color: var(--text-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
+}
+.window { display: grid; gap: 7px; min-width: 0; }
+.reset {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.refresh {
+  color: var(--text-secondary);
+  &:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
+}
+.card .error { grid-column: 1 / -1; color: var(--color-danger, #dc2626); }

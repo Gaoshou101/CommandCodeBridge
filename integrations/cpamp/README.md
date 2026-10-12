@@ -1,6 +1,6 @@
 # CPAMP 原生凭证集成
 
-## v0.2.6 推荐入口
+## v0.2.7 推荐入口
 
 同机直接运行二进制时，升级插件后进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server，再点击「检查生效状态」。插件动态库内置匹配版本页面，自动探测运行实例和官方默认 `~/cpa-manager-plus`，无需单独下载管理页面或手动设置环境变量。
 
@@ -16,13 +16,13 @@
 
 `0.2.4` 补齐浏览器电脑上的本地 POST 接收器。它接收官网凭证，显示可复制认证结果，再由 CPAMP 原生卡片通过受管理鉴权保护的插件 POST 提交给远端 CPA。继续复用原生状态轮询和 CPA 凭证保存；CPA 通用回调仅提取 `code`，无法直接交付 CommandCode 的 `apiKey`。
 
-CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加插件额度接口仍不会在原生凭证页渲染 CommandCode。本适配直接在 CPAMP 的原生网格、列表、详情额度页增加套餐、credits、窗口进度与重置时间，复用面板已有的 Button 和 QuotaProgressBar。
+CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加插件额度接口仍不会在原生凭证页渲染 CommandCode。本适配直接在 CPAMP 的原生网格、列表、详情额度页显示左右两区：左侧 5h、周额度上下两排，右侧月额度单列居中，仅保留窗口标签、剩余百分比、进度条与相对重置时间。完整重置日期可悬停查看，刷新使用右侧图标；复用面板已有的 Button 和 QuotaProgressBar。
 
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。
-2. 安装匹配 CPA 平台的 CommandCodeBridge `0.2.6` 动态库并重启 CPA。从 [v0.2.6 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.6) 选择匹配平台 ZIP，并核验 `checksums.txt`。
-3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.6_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
+2. 通过支持热升级的 CPA 插件商店更新 CommandCodeBridge；确认运行版本为 `0.2.7`。从 [v0.2.7 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.7) 选择匹配平台 ZIP，并核验 `checksums.txt`。
+3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.7_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
 
 ```bash
 python /path/to/CommandCodeBridge/integrations/cpamp/apply.py /path/to/CPA-Manager-Plus --check
@@ -95,7 +95,7 @@ loopback 指浏览器所在电脑。CPA 不需要监听 `45879`，无需开放�
 
 - 原生发现：`GET /v0/management/quota/providers`；查询：`POST /v0/management/quota/fetch`，请求仅需要当前凭证的 `auth_index`。
 - 上游通过 CPA 宿主传输策略查询现有 `/alpha` 接口，复用插件采样缓存；每次显式刷新至少间隔十秒。
-- 本月剩余、本期已用和订阅重置日期显示实际值。只有真实 `monthly` 窗口具备有效 cap 时显示月百分比，其他情况显示「月上限未知」。credits 不换算成美元。
+- 原生凭证额度区不展示套餐、credits 明细、窗口说明、更新时间或「月上限未知」提示。月额度固定占据右侧：有真实 `monthly` 窗口时显示其百分比和重置时间；没有有效比例时显示「—」，重置时间可取真实订阅周期结束时间，不估算月百分比。详细 credits 和月额度信息仍可在插件控制台查看。
 - 打开页面不主动访问上游；点击刷新才查询。网格、列表和详情共享当前内存结果，不把账户余额写到浏览器存储。切换 CPA、管理登录或凭证版本会隔离旧结果。
 - 查询失败保留上次观察并标记过期；部分成功只发布本次成功的字段。单个模型无权限不影响账户额度查询。
 - 此补丁添加原生展示和刷新，不改变现有 Codex 调度、全局额度排序/筛选或历史快照数据库。
