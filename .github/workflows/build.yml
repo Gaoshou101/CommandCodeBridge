@@ -184,6 +184,15 @@ jobs:
           npm --workspace apps/web run build
           cd "$GITHUB_WORKSPACE"
           python scripts/package_cpamp.py "$cpamp_source"
+          python - "$cpamp_source" <<'PY'
+          import pathlib, subprocess, sys, tempfile, zipfile
+          archive = next(pathlib.Path("dist").glob("*_cpamp-web.zip"))
+          with tempfile.TemporaryDirectory(prefix="cpamp-release-check-") as temporary:
+              with zipfile.ZipFile(archive) as bundle:
+                  bundle.extractall(temporary)
+              script = pathlib.Path(temporary) / "integrations/cpamp/apply.py"
+              subprocess.run([sys.executable, str(script), sys.argv[1], "--check"], check=True)
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: commandcodebridge-cpamp-web
