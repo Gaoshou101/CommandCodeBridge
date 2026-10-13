@@ -81,6 +81,16 @@ describe('CommandCode persisted observations', () => {
     expect(store.getCommandCodeQuota(file, scope).recentRequests).toEqual([]);
   });
 
+  it('matches files without a routing ID by name and never borrows another credential', async () => {
+    const store = await import('./commandCodeQuotaStore');
+    const withoutID = { ...file, id: undefined, name: 'second.json' };
+    const otherQuota = { ...quota, summary: [{ key: 'monthly_credits', value: 20 }] };
+    mocks.get.mockResolvedValueOnce({ credentials: [snapshot().credentials[0],
+      { id: 'second', file_name: 'second.json', quota: otherQuota, usage: { status: 'ok', updated_at: observed } }] });
+    await store.syncCommandCodeCredentials([withoutID], scope);
+    expect(store.getCommandCodeQuota(withoutID, scope).data).toEqual(otherQuota);
+  });
+
   it('marks failed restored data as stale without treating the failed check as a new observation', async () => {
     const store = await import('./commandCodeQuotaStore');
     mocks.get.mockResolvedValueOnce({ credentials: [{ ...snapshot().credentials[0],

@@ -56,7 +56,7 @@ const scopeKey = (file: AuthFileItem, scope: ApiClientRequestScope) => JSON.stri
 ]);
 const credentialMatches = (item: CredentialSnapshot, file: AuthFileItem) =>
   (item.file_name ? item.file_name === file.name : item.id === file.name.replace(/\.json$/i, '')) ||
-  item.routing_id === file.id || item.id === file.id;
+  Boolean(file.id && (item.routing_id === file.id || item.id === file.id));
 const observationTime = (usage: CommandCodeUsage | undefined) => {
   const at = usage?.updated_at ?? (usage?.status !== 'error' ? usage?.checked_at : undefined);
   const ms = at ? Date.parse(at) : NaN;
