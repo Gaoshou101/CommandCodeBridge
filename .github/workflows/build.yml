@@ -45,11 +45,11 @@ jobs:
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_e2e.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_native_management.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_reliability.py
-          gh release download v0.2.6 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.6_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
+          gh release download v0.2.7 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.7_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
           cd /tmp/bridge-previous
           sha256sum --check --ignore-missing checksums.txt
           cd "$GITHUB_WORKSPACE"
-          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.6_linux_amd64.zip
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.7_linux_amd64.zip
           mkdir -p /tmp/cpamp-test
           gh release download v1.14.0 --repo seakee/CPA-Manager-Plus --pattern cpa-manager-plus_v1.14.0_linux_amd64.tar.gz --pattern checksums.txt --dir /tmp/cpamp-test
           cd /tmp/cpamp-test
