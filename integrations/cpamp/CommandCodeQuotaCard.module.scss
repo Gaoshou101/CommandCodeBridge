@@ -18,10 +18,8 @@
 .monthlyWindow {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   min-width: 0;
-  padding-left: 16px;
-  border-left: 1px solid var(--accounts-border, var(--border-color));
 }
 .heading {
   display: flex;
@@ -50,7 +48,10 @@
   strong { color: var(--text-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
 }
 .window { display: grid; gap: 7px; min-width: 0; }
+.meta { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; }
+.balance { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .reset {
+  margin-left: auto;
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.4;

@@ -6,6 +6,7 @@ import { buildAccountQuotaSnapshotWriteEntries, buildAccountQuotaSnapshotQueryAc
 import { buildAccountWindowUsageTargetEntries, buildAccountWindowUsageByKey } from './accountWindowUsageRows';
 import { resolveAccountQuotaWindowUsageAndForecast } from './accountQuotaWindowUsagePresentation';
 import { buildAccountRows } from './accountRows';
+import { formatCommandCodePlan, getCommandCodeMonthlyQuota } from '../components/commandCodeQuotaPolicy';
 
 const now = Date.parse('2026-10-12T14:00:00Z');
 const state = { observedAtMs: now, data: { subscription: { plan: 'individual-goat' }, groups: [
@@ -17,9 +18,9 @@ const row = buildAccountRows([{ id: 'fixture', name: 'fixture.json', provider: '
   { antigravityQuota: {}, claudeQuota: {}, codexQuota: {}, devinQuota: {}, kimiQuota: {}, metaQuota: {}, xaiQuota: {} })[0];
 
 describe('CommandCode native window integration', () => {
-  it('uses real resets/percentages and subscription dates without fabricating a monthly cap or previous calendar range', () => {
+  it('uses the confirmed GOAT allowance and real subscription dates without inventing previous calendar ranges', () => {
     const windows = buildCommandCodeQuotaWindows(state);
-    expect(windows.map(window => window.remainingPercent)).toEqual([60, 80, null]);
+    expect(windows.map(window => window.remainingPercent)).toEqual([60, 80, 61 / 70 * 100]);
     const definitions = buildAccountQuotaWindowDefinitions(windows, now);
     expect(definitions[0].cycleStartMs).toBe(Date.parse('2026-10-12T10:00:00Z'));
     expect(definitions.map(definition => definition.durationSeconds)).toEqual([18000, 604800, 31 * 86400]);
@@ -31,7 +32,7 @@ describe('CommandCode native window integration', () => {
       { period: 'current', fromMs: Date.parse(state.usage.subscription_start), toMs: now },
     ]);
     const summary = applyCommandCodeQuotaToRow(row, state);
-    expect(summary.planType).toBe('individual-goat');
+    expect(summary.planType).toBe('GOAT');
     expect(summary.quota.status).toBe('ok');
     expect(summary.quota.remainingPercent).toBe(60);
     const nativeMonthly = buildCommandCodeQuotaWindows({ ...state, data: { ...state.data,
@@ -51,7 +52,7 @@ describe('CommandCode native window integration', () => {
     expect(observations[0].provider).toBe('commandcode');
     expect(observations[0].windows[0].model_scope_kind).toBe('all');
     expect(observations[0].windows[0].used_percent).toBe(40);
-    expect(observations[0].windows[2].used_percent).toBeUndefined();
+    expect(observations[0].windows[2].used_percent).toBeCloseTo(100 - 61 / 70 * 100);
     const queries = buildAccountQuotaSnapshotQueryAccounts([row]);
     expect(queries).toHaveLength(1);
     expect(queries[0].provider).toBe('commandcode');
@@ -77,7 +78,42 @@ describe('CommandCode native window integration', () => {
     const partial = buildCommandCodeQuotaWindows({ ...state, usage: { ...state.usage, unavailable: ['subscription'] },
       data: { groups: state.data.groups } });
     expect(partial).toHaveLength(2);
+    const balanceOnly = buildCommandCodeQuotaWindows({ ...state, usage: { ...state.usage, unavailable: ['subscription'] },
+      data: { ...state.data, summary: [{ key: 'monthly_credits', value: 61 }] } });
+    expect(balanceOnly).toHaveLength(3);
+    expect(balanceOnly[2].cycleStartMs).toBeNull();
+    expect(balanceOnly[2].cycleEndMs).toBeNull();
+    expect(balanceOnly[2].remainingPercent).toBeCloseTo(61 / 70 * 100);
     expect(applyCommandCodeQuotaToRow(row, { ...state, error: 'expired', errorStatus: 401 }).quota.status).toBe('error');
     expect(applyCommandCodeQuotaToRow(row, { ...state, error: 'expired' }).quota.remainingPercent).toBe(60);
+  });
+
+  it.each([
+    ['individual-go', 'Go', 10], ['individual-go-v1', 'Go', 10], ['individual-goat', 'GOAT', 70],
+    ['individual-pro', 'Pro', 30], ['individual-pro-v1', 'Pro', 80],
+    ['individual-max', 'Max', 150], ['individual-ultra', 'Max', 300],
+  ])('keeps %s monthly limits distinct while displaying %s', (plan, label, cap) => {
+    const quota = getCommandCodeMonthlyQuota({ ...state, data: { ...state.data, subscription: { plan },
+      summary: [{ key: 'monthly_credits', value: cap / 2 }] } });
+    expect(formatCommandCodePlan(plan)).toBe(label);
+    expect(quota.capCredits).toBe(cap);
+    expect(quota.remainingPercent).toBe(50);
+    expect(applyCommandCodeQuotaToRow(row, { data: { subscription: { plan } } }).planType).toBe(label);
+  });
+
+  it('uses monthly credits exclusively, prefers native caps, and leaves unrecognized limits unknown', () => {
+    expect([' Go ', 'GOAT', 'pro', 'Max', 'individual_ultra'].map(formatCommandCodePlan)).toEqual(['Go', 'GOAT', 'Pro', 'Max', 'Max']);
+    expect(formatCommandCodePlan('unrecognized')).toBeNull();
+    expect(formatCommandCodePlan('constructor')).toBeNull();
+    const withPurchased = { ...state, data: { ...state.data, summary: [{ key: 'monthly_credits', value: 61.0826068507 }, { key: 'remaining_credits', value: 161.0826068507 }] } };
+    expect(getCommandCodeMonthlyQuota(withPurchased).remainingPercent).toBeCloseTo(87.2608669296);
+    expect(getCommandCodeMonthlyQuota({ ...withPurchased, data: { ...withPurchased.data, subscription: { plan: 'unrecognized' } } }).remainingPercent).toBeNull();
+    expect(getCommandCodeMonthlyQuota({ ...withPurchased, data: { ...withPurchased.data, subscription: { plan: 'Max' } } }).capCredits).toBeNull();
+    expect(getCommandCodeMonthlyQuota({ ...withPurchased, data: { ...withPurchased.data, summary: [{ key: 'remaining_credits', value: 161 }] } }).remainingPercent).toBeNull();
+    expect(getCommandCodeMonthlyQuota({ ...state, data: { ...state.data, summary: [{ key: 'monthly_credits', value: 0 }] } }).remainingPercent).toBe(0);
+    expect(getCommandCodeMonthlyQuota({ ...state, data: { ...state.data, summary: [{ key: 'monthly_credits', value: NaN }] } }).remainingPercent).toBeNull();
+    expect(getCommandCodeMonthlyQuota({ ...state, usage: { ...state.usage, windows: [{ name: 'monthly', cap: 100 }] } }).remainingPercent).toBe(61);
+    expect(getCommandCodeMonthlyQuota({ ...state, usage: { ...state.usage, status: 'error', windows: [{ name: 'monthly', cap: 100 }] } }).capCredits).toBe(70);
+    expect(getCommandCodeMonthlyQuota({ ...state, usage: { ...state.usage, unavailable: ['credits'], windows: [{ name: 'monthly', cap: 100 }] } }).capCredits).toBe(70);
   });
 });

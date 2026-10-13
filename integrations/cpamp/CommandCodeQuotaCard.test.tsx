@@ -59,11 +59,12 @@ describe('CommandCode native credential quotas', () => {
     expect(readText(grid.toJSON())).toContain('剩余 86%');
     expect(readText(grid.toJSON())).toContain('4 小时后');
     expect(readText(grid.toJSON())).toContain('4 天后');
-    expect(readText(grid.toJSON())).toContain('月额度剩余 —');
+    expect(readText(grid.toJSON())).toContain('月额度剩余 57%');
+    expect(readText(grid.toJSON())).toContain('40 / 70 credits');
     expect(readText(grid.toJSON())).toContain('20 天后');
-    expect(grid.root.findAllByType(QuotaProgressBar).map(node => node.props.percent)).toEqual([60, 86, null]);
+    expect(grid.root.findAllByType(QuotaProgressBar).map(node => node.props.percent)).toEqual([60, 86, 40 / 70 * 100]);
     expect(grid.root.findAllByType('time').map(node => node.props.dateTime)).toEqual(['2026-10-12T04:00:00.000Z', '2026-10-16T00:00:00.000Z', '2026-11-01T00:00:00.000Z']);
-    for (const removed of ['individual-goat', 'credits', '月上限未知', '更新', '已用']) {
+    for (const removed of ['individual-goat', '月上限未知', '更新', '已用']) {
       expect(readText(grid.toJSON())).not.toContain(removed);
     }
     await act(async () => { detail = create(<CommandCodeQuotaCard file={file} />); });
@@ -90,7 +91,7 @@ describe('CommandCode native credential quotas', () => {
     await act(async () => { renderer.unmount(); });
     mocks.store.managementKey = 'fixture-manager-key';
   });
-  it('uses the actual monthly window before the subscription reset and never infers a monthly percentage from credits', async () => {
+  it('prefers native monthly percentages and otherwise uses the confirmed GOAT allowance', async () => {
     mocks.post.mockReset();
     let renderer!: ReactTestRenderer;
     await act(async () => { renderer = create(<CommandCodeQuotaCard file={{ ...file, id: 'monthly-fixture' }} />); });
@@ -104,7 +105,7 @@ describe('CommandCode native credential quotas', () => {
     expect(renderer.root.findAllByType('time')[2].props.dateTime).toBe('2026-11-02T00:00:00.000Z');
     mocks.post.mockResolvedValueOnce({ ...quota, groups: [{ buckets: [{ window: 'monthly', remainingFraction: NaN }] }] });
     await act(async () => { button(renderer).props.onClick(); });
-    expect(renderer.root.findAllByType(QuotaProgressBar).map(node => node.props.percent)).toEqual([null, null, null]);
+    expect(renderer.root.findAllByType(QuotaProgressBar).map(node => node.props.percent)).toEqual([null, null, 40 / 70 * 100]);
     expect(renderer.root.findAllByType('time')[2].props.dateTime).toBe('2026-11-01T00:00:00.000Z');
     await act(async () => { renderer.unmount(); });
   });

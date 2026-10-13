@@ -6,6 +6,7 @@ import type { AuthFileItem } from '@/types';
 import { formatQuotaResetRelative } from '../model/accountsPagePresentation';
 import { QuotaProgressBar } from './QuotaProgressBar';
 import { refreshCommandCodeQuota, useCommandCodeQuota } from './commandCodeQuotaStore';
+import { getCommandCodeMonthlyQuota } from './commandCodeQuotaPolicy';
 import styles from './CommandCodeQuotaCard.module.scss';
 
 export function CommandCodeQuotaCard({ file, compact = false, refreshOnly = false }: { file: AuthFileItem; compact?: boolean; refreshOnly?: boolean }) {
@@ -22,6 +23,7 @@ export function CommandCodeQuotaCard({ file, compact = false, refreshOnly = fals
     if (enabled) await refreshCommandCodeQuota(file, scope);
   };
   const buckets = (state.data?.groups ?? []).flatMap(group => group.buckets ?? []);
+  const monthly = getCommandCodeMonthlyQuota(state);
   if (refreshOnly) return <div data-commandcode-quota-refresh="true">
     <Button variant="secondary" size="sm" loading={state.pending} disabled={!enabled}
       onClick={() => void refresh()} aria-label="刷新 CommandCode 套餐额度">
@@ -31,9 +33,9 @@ export function CommandCodeQuotaCard({ file, compact = false, refreshOnly = fals
   </div>;
   const renderWindow = (window: string, label: string) => {
     const bucket = buckets.find(item => item.window === window);
-    const remaining = bucket && typeof bucket.remainingFraction === 'number' && Number.isFinite(bucket.remainingFraction)
-      ? Math.max(0, Math.min(1, bucket.remainingFraction)) * 100 : null;
-    // A subscription end can supply a reset date, never a made-up monthly cap.
+    const remaining = window === 'monthly' ? monthly.remainingPercent
+      : bucket && typeof bucket.remainingFraction === 'number' && Number.isFinite(bucket.remainingFraction)
+        ? Math.max(0, Math.min(1, bucket.remainingFraction)) * 100 : null;
     const subscriptionReset = window === 'monthly'
       ? state.data?.summary?.find(metric => metric.key === 'subscription_reset_at')?.value : undefined;
     const bucketReset = bucket?.resetTime ? Date.parse(bucket.resetTime) : NaN;
@@ -49,8 +51,14 @@ export function CommandCodeQuotaCard({ file, compact = false, refreshOnly = fals
         <span className={styles.remaining}>剩余 <strong title={remaining === null ? '上游未提供额度比例' : undefined}>{remaining === null ? '—' : `${number(remaining)}%`}</strong></span>
       </div>
       <QuotaProgressBar percent={remaining} highThreshold={70} mediumThreshold={30} />
-      <time className={styles.reset} dateTime={validReset ? new Date(resetAt).toISOString() : undefined}
-        title={validReset ? `重置 ${new Date(resetAt).toLocaleString(i18n.language)}` : undefined}>{resetLabel}</time>
+      <div className={styles.meta}>
+        {window === 'monthly' && monthly.remainingCredits !== null && <span className={styles.balance}>
+          {new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 3 }).format(monthly.remainingCredits)}
+          {monthly.capCredits !== null ? ` / ${number(monthly.capCredits)}` : ''} credits
+        </span>}
+        <time className={styles.reset} dateTime={validReset ? new Date(resetAt).toISOString() : undefined}
+          title={validReset ? `重置 ${new Date(resetAt).toLocaleString(i18n.language)}` : undefined}>{resetLabel}</time>
+      </div>
     </div>;
   };
   return (

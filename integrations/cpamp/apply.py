@@ -187,7 +187,7 @@ if not args.check:
     for path, text in prepared.items():
         path.write_text(text, encoding='utf-8', newline='\n')
     target = root / 'apps/web/src/features/accounts/components'
-    for name in ['CommandCodeQuotaCard.tsx', 'CommandCodeQuotaCard.module.scss', 'CommandCodeQuotaCard.test.tsx', 'commandCodeQuotaStore.ts']:
+    for name in ['CommandCodeQuotaCard.tsx', 'CommandCodeQuotaCard.module.scss', 'CommandCodeQuotaCard.test.tsx', 'commandCodeQuotaStore.ts', 'commandCodeQuotaPolicy.ts']:
         shutil.copy2(source / name, target / name)
     for name in ['commandCodeQuotaWindows.ts', 'commandCodeQuotaWindows.test.ts']:
         shutil.copy2(source / name, model / name)
