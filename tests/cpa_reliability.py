@@ -153,9 +153,19 @@ def run():
         before = host.call(API + "/statistics")["totals"]
         before_logs = {row["id"] for row in host.logs()}
         before_auth = {path.name: json.loads(path.read_text()) for path in host.auth.glob("*.json")}
+        before_accounts = {account["id"]: account for account in host.call(API + "/credentials")["credentials"]}
+        assert all(account.get("quota", {}).get("groups") for account in before_accounts.values()), before_accounts
+        host.wait(lambda: (host.data / "usage.json").is_file(), "persisted quota observations")
         host.restart()
         host.wait(lambda: host.call(API + "/status")["credentials"] == 2, "restored credentials")
         accounts = host.call(API + "/credentials")["credentials"]
+        for account in accounts:
+            original = before_accounts[account["id"]]
+            assert account.get("quota", {}).get("groups"), "restart lost native quota windows"
+            assert account["recent_requests"] == original["recent_requests"], "restart lost recent request status"
+            if account["disabled"]:
+                assert account["usage"]["updated_at"] == original["usage"]["updated_at"], "restart invented a quota observation time"
+                assert account["quota"] == original["quota"], "disabled account lost its retained quota"
         assert any(account["id"] == second and account["disabled"] and account["label"] == "retained disabled account" for account in accounts)
         assert host.call(API + "/models")["models"] == models
         assert host.call(API + "/statistics")["totals"] == before

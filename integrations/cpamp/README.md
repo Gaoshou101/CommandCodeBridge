@@ -1,10 +1,16 @@
 # CPAMP 原生凭证集成
 
-## v0.2.8 原生窗口功能
+## v0.2.9：最近请求与额度恢复
+
+凭证工作区打开时读取插件脱敏缓存，每 30 秒同步最近请求与额度；切回浏览器页面时立即同步。最近请求取插件保存的真实模型请求，保留历史时间，不受 Manager 监控导入延迟影响，本地冷却跳过不计入状态条。Manager 的全量历史统计仍使用原有统计接口。
+
+插件将额度观察写入 `data_dir/usage.json`，重启后按凭证指纹校验恢复；文件备注、模型设置或更新时间变更不清空额度。刷新失败保留上次值及原始采集时间，换密钥、代理或上游后清空旧观察。升级插件和页面均需完成才能使用此修复；Docker 需持久化插件 `data_dir`。
+
+## v0.2.9 原生窗口功能
 
 CommandCode 详情额度页复用 CPAMP 原生窗口卡片，支持当前与上个窗口的请求统计、预测和周期快照。列表保留左侧 5h／周、右侧月额度的简洁布局，两列无分割线，月额度与 5h 顶部对齐；月额度下方显示真实剩余 credits 和月上限。套餐名统一为 Go、GOAT、Pro、Max。
 
-v0.2.8 四平台插件已内嵌匹配页面，独立前端包也包含上述功能。完整周期快照还需基于现有 Manager Server 的同一源码版本重建二进制并重启，使服务器接受 `commandcode` 平台；页面更新入口只更新 HTML。脚本新增的服务器改动仅为快照平台名单，不修改数据库结构。已完成该服务器补丁的环境只需更新插件和页面。
+v0.2.9 四平台插件已内嵌匹配页面，独立前端包也包含上述功能。完整周期快照还需基于现有 Manager Server 的同一源码版本重建二进制并重启，使服务器接受 `commandcode` 平台；页面更新入口只更新 HTML。脚本新增的服务器改动仅为快照平台名单，不修改数据库结构。已完成该服务器补丁的环境只需更新插件和页面。
 
 ## 推荐入口
 
@@ -27,8 +33,8 @@ CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加�
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。
-2. 通过支持热升级的 CPA 插件商店更新 CommandCodeBridge；确认运行版本为 `0.2.8`。从 [v0.2.8 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.8) 选择匹配平台 ZIP，并核验 `checksums.txt`。
-3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.8_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
+2. 通过支持热升级的 CPA 插件商店更新 CommandCodeBridge；确认运行版本为 `0.2.9`。从 [v0.2.9 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.9) 选择匹配平台 ZIP，并核验 `checksums.txt`。
+3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.9_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
 
 ```bash
 python /path/to/CommandCodeBridge/integrations/cpamp/apply.py /path/to/CPA-Manager-Plus --check
@@ -108,7 +114,7 @@ loopback 指浏览器所在电脑。CPA 不需要监听 `45879`，无需开放�
 - CommandCode 已接入原生额度刷新、套餐与余量状态、排序/筛选、详情窗口卡片、历史窗口查询及原生快照持久化。列表仍使用简洁的左右两区布局；详情使用 CPAMP 的标准窗口卡片，显示上个窗口、当前窗口的请求数、tokens、预估花费和成功率，以及符合原生条件时的窗口预测。
 - 原生额度查询成功后补充读取插件现有的脱敏凭证列表，取得实际观察时间和订阅起止时间；兼容已安装的 v0.2.7 插件。5h/周窗口起点由真实重置时间减去对应窗口时长得到，月窗口取真实订阅周期。缺少真实 cap 且套餐不在已核实映射时百分比为「—」；上个月的边界仅采用已记录的周期。没有匹配历史时使用原生空值展示；花费为 CPAMP 历史请求的价格估算，不将 CommandCode credits 换算成美元。
 - 额度缓存按 CPA 地址、管理登录和凭证版本隔离，只保留内存状态；失败结果不会作为新快照写入，不使用过期比例预测。CPA 返回的 `missing provider baseURL` 属于本地路由配置错误，即使其 HTTP 状态是 401，也不能据此要求重新登录；历史失败记录保留在诊断页。
-- 持久化周期需要 Manager Server 的 `quotasnapshot.validProviders` 接受 `commandcode`。适配脚本同时修改前端查询名单和服务器名单，并复制 SQLite 持久化及凭证隔离回归测试。仅替换 HTML 可显示实时额度和历史请求；完整快照功能需按当前服务器的同一源码版本重建 Manager Server、备份二进制后替换并重启。此补丁不修改数据库结构；先在 `apps/manager-server` 运行 `go test ./internal/service/quotasnapshot -run TestCommandCode -count=1`。v0.2.8 包内提供源码适配与测试，未提供替换 Manager Server 的通用二进制。
+- 持久化周期需要 Manager Server 的 `quotasnapshot.validProviders` 接受 `commandcode`。适配脚本同时修改前端查询名单和服务器名单，并复制 SQLite 持久化及凭证隔离回归测试。仅替换 HTML 可显示实时额度和历史请求；完整快照功能需按当前服务器的同一源码版本重建 Manager Server、备份二进制后替换并重启。此补丁不修改数据库结构；先在 `apps/manager-server` 运行 `go test ./internal/service/quotasnapshot -run TestCommandCode -count=1`。v0.2.9 包内提供源码适配与测试，未提供替换 Manager Server 的通用二进制。
 - 原生登录 state 十分钟过期、单次消费；key 先经只读 whoami 验证，再由 CPA 保存到 auth-dir。手动回退接口需要管理鉴权。
 - 官方回调凭证在 POST 正文。接收器只监听 IPv4 loopback，校验官网 Origin、Host、本次 state、重复字段、有效期和单次消费；结果仅存内存，十分钟后清除，进程十五分钟自动退出。不保存文件、不向远端自动转发、不读取 CPA 管理密钥。
 - 接收器的复制结果包含 API key，请勿分享。浏览器地址栏只含 state；接收器与 CPAMP 输入框遮蔽结果。CPAMP 提交成功后清空，不写入浏览器存储；远端提交使用 POST 正文。插件校验 loopback 地址、固定路径/端口、state、重复参数、有效期和单次消费，API key 先经只读 whoami 验证。

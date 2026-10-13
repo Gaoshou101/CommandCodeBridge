@@ -26,6 +26,7 @@ changes = {
     accounts: [
         ("import { Button } from '@/components/ui/Button';", "import { Button } from '@/components/ui/Button';\nimport { CommandCodeQuotaCard } from './components/CommandCodeQuotaCard';"),
         ("import { CommandCodeQuotaCard } from './components/CommandCodeQuotaCard';", "import { CommandCodeQuotaCard } from './components/CommandCodeQuotaCard';\nimport { getCommandCodeQuota, refreshCommandCodeQuota, useCommandCodeQuotaRevision } from './components/commandCodeQuotaStore';\nimport { applyCommandCodeQuotaToRow, buildCommandCodeQuotaWindows } from './model/commandCodeQuotaWindows';"),
+        ("import { getCommandCodeQuota, refreshCommandCodeQuota, useCommandCodeQuotaRevision }", "import { getCommandCodeQuota, refreshCommandCodeQuota, useCommandCodeQuotaRevision, useCommandCodeCredentials }") ,
         ("export function AccountsPage() {", "export function AccountsPage() {\n  const commandCodeQuotaRevision = useCommandCodeQuotaRevision();"),
         ('credentialStatusBoundaries\n      ),', 'credentialStatusBoundaries\n      ).map(row => applyCommandCodeQuotaToRow(row, getCommandCodeQuota(row.raw, authFilesRequestScope))),'),
         ('      accountQuotaOverrides,\n      baseQuotaStores,\n      files,', '      accountQuotaOverrides,\n      commandCodeQuotaRevision,\n      authFilesRequestScope,\n      baseQuotaStores,\n      files,'),
@@ -54,6 +55,22 @@ changes = {
         ('className={styles.accountGridCardQuota}\n                    title={ctx.quotaWindowTitle}\n                    role={isSelectionMode ? undefined : \'button\'}\n                    tabIndex={isSelectionMode ? undefined : 0}', "className={styles.accountGridCardQuota}\n                    title={row.provider === 'commandcode' ? undefined : ctx.quotaWindowTitle}\n                    role={isSelectionMode || row.provider === 'commandcode' ? undefined : 'button'}\n                    tabIndex={isSelectionMode || row.provider === 'commandcode' ? undefined : 0}"),
         ('const resetCreditsAriaSuffix =\n                      ctx.hasCodexResetCredits', "if (row.provider === 'commandcode') {\n                      return <div className={styles.accountCardBusiness}><CommandCodeQuotaCard file={row.raw} compact /></div>;\n                    }\n                    const resetCreditsAriaSuffix =\n                      ctx.hasCodexResetCredits"),
         ('detailView={detailView}\n            windowUsageError=', 'detailView={detailView}\n            commandCodeFile={selectedRow.raw}\n            windowUsageError='),
+        ('  const rows = useMemo(\n', "  useCommandCodeCredentials(files, authFilesRequestScope, activeView === 'accounts' && connectionStatus === 'connected');\n\n  const rows = useMemo(\n"),
+        ('    return evidenceMap;\n  }, [accountHistoryByRowKey]);', '''    files.forEach(file => {
+      if ((file.provider ?? file.type) !== 'commandcode') return;
+      const state = getCommandCodeQuota(file, authFilesRequestScope);
+      if (state.recentRequests === undefined) return;
+      evidenceMap.set(getAuthFileSelectionKey(file), {
+        latestRequest: state.recentRequests[0] ?? null,
+        recentRequests: state.recentRequests,
+      });
+    });
+    return evidenceMap;
+  }, [accountHistoryByRowKey, files, commandCodeQuotaRevision, authFilesRequestScope]);'''),
+        ('latestRequest={ctx.accountHistory?.latest_request}\n                      recentRequests={ctx.accountHistory?.recent_requests}\n                      loading={accountHistoryLoading && !ctx.accountHistory}\n                      unavailable={Boolean(ctx.accountHistoryError)}', '''latestRequest={row.provider === 'commandcode' ? requestEvidenceBySelectionKey.get(row.selectionKey)?.latestRequest : ctx.accountHistory?.latest_request}
+                      recentRequests={row.provider === 'commandcode' ? getCommandCodeQuota(row.raw, authFilesRequestScope).recentRequests ?? ctx.accountHistory?.recent_requests : ctx.accountHistory?.recent_requests}
+                      loading={accountHistoryLoading && !ctx.accountHistory && !(row.provider === 'commandcode' && getCommandCodeQuota(row.raw, authFilesRequestScope).recentRequests)}
+                      unavailable={Boolean(ctx.accountHistoryError) && !(row.provider === 'commandcode' && getCommandCodeQuota(row.raw, authFilesRequestScope).recentRequests)}'''),
     ],
     tab: [
         ("import { Button } from '@/components/ui/Button';", "import { Button } from '@/components/ui/Button';\nimport type { AuthFileItem } from '@/types';\nimport { CommandCodeQuotaCard } from '../CommandCodeQuotaCard';"),
@@ -173,6 +190,10 @@ for path, replacements in changes.items():
     # Migrate the earlier local draft, which nested the refresh button inside
     # CPAMP's table detail button. Keep CommandCode outside that trigger.
     if path == accounts:
+        # Normalize the previous integration import so this script stays
+        # idempotent when updating an already patched source checkout.
+        text = text.replace('useCommandCodeQuotaRevision, useCommandCodeCredentials }', 'useCommandCodeQuotaRevision }')
+        text = text.replace("latestRequest={row.provider === 'commandcode' ? getCommandCodeQuota(row.raw, authFilesRequestScope).recentRequests?.[0] ?? ctx.accountHistory?.latest_request : ctx.accountHistory?.latest_request}", "latestRequest={row.provider === 'commandcode' ? requestEvidenceBySelectionKey.get(row.selectionKey)?.latestRequest : ctx.accountHistory?.latest_request}")
         text = text.replace("{row.provider === 'commandcode' ? (\n                          <CommandCodeQuotaCard file={row.raw} compact />\n                        ) : ctx.mainListWindows.length > 0 ? (\n                          ctx.mainListWindows.map", '{ctx.mainListWindows.length > 0 ? (\n                          ctx.mainListWindows.map')
     if path == tab:
         text = text.replace("\n      {detailView.identity.provider === 'commandcode' && commandCodeFile && <CommandCodeQuotaCard file={commandCodeFile} />}", '')
@@ -187,7 +208,7 @@ if not args.check:
     for path, text in prepared.items():
         path.write_text(text, encoding='utf-8', newline='\n')
     target = root / 'apps/web/src/features/accounts/components'
-    for name in ['CommandCodeQuotaCard.tsx', 'CommandCodeQuotaCard.module.scss', 'CommandCodeQuotaCard.test.tsx', 'commandCodeQuotaStore.ts', 'commandCodeQuotaPolicy.ts']:
+    for name in ['CommandCodeQuotaCard.tsx', 'CommandCodeQuotaCard.module.scss', 'CommandCodeQuotaCard.test.tsx', 'commandCodeQuotaStore.ts', 'commandCodeQuotaStore.test.ts', 'commandCodeQuotaPolicy.ts']:
         shutil.copy2(source / name, target / name)
     for name in ['commandCodeQuotaWindows.ts', 'commandCodeQuotaWindows.test.ts']:
         shutil.copy2(source / name, model / name)

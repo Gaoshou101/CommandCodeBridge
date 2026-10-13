@@ -76,7 +76,7 @@ describe('CommandCode native credential quotas', () => {
     expect(readText(grid.toJSON())).toContain('已过期');
     expect(readText(grid.toJSON())).not.toContain('fixture-secret');
     await act(async () => { grid.update(<CommandCodeQuotaCard file={{ ...file, modified: 123 }} compact />); });
-    expect(readText(grid.toJSON())).not.toContain('剩余 60%');
+    expect(readText(grid.toJSON())).toContain('剩余 60%');
     await act(async () => { grid.unmount(); detail.unmount(); });
   });
   it('never requests quota for a disabled credential or shares it with a new manager login', async () => {

@@ -12,7 +12,7 @@
 - **原生额度窗口**：在 CPAMP 列表、卡片和详情查看 5h、周、月额度，查询窗口请求统计、预测和周期快照。
 - **请求记录**：查看凭证健康度、tokens、缓存用量、预估花费、首字耗时、输出速率及模型统计；支持明暗主题和手机布局。
 
-当前版本 **v0.2.8**。插件调用官方 Provider API；Go 订阅的 `/alpha/generate` 路径和固定上游 provider 模式不在支持范围内。账户用量通过官方 `/alpha/...` 查询接口读取，模型权限以实际套餐为准。
+当前版本 **v0.2.9**。插件调用官方 Provider API；Go 订阅的 `/alpha/generate` 路径和固定上游 provider 模式不在支持范围内。账户用量通过官方 `/alpha/...` 查询接口读取，模型权限以实际套餐为准。
 
 ## 快速安装
 
@@ -27,7 +27,7 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存并重载配置，在 CPAMP「插件商店」找到 **CommandCodeBridge**，选择 Latest 或 **v0.2.8** 安装。支持热升级的宿主会下载匹配平台的 ZIP、验证校验值并切换版本；安装后检查插件控制台显示的运行版本。
+保存并重载配置，在 CPAMP「插件商店」找到 **CommandCodeBridge**，选择 Latest 或 **v0.2.9** 安装。支持热升级的宿主会下载匹配平台的 ZIP、验证校验值并切换版本；安装后检查插件控制台显示的运行版本。
 
 也可从 [Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases/latest) 手动下载 ZIP 和 `checksums.txt`。按 **CPA 所在服务器**选择动态库：
 
@@ -53,7 +53,7 @@ Linux 发布包要求 glibc ≥2.34；Alpine/musl 需自行构建。手动安装
 
 ## 安装或更新原生面板
 
-**升级插件后还要更新 CPAMP 页面**，才能使用新版凭证布局。v0.2.8 动态库已内嵌匹配页面。
+**升级插件后还要更新 CPAMP 页面**，才能使用新版凭证布局。v0.2.9 动态库已内嵌匹配页面。
 
 CPA 与 Manager Server 在同一主机直接运行时：
 
@@ -68,7 +68,7 @@ CPA 与 Manager Server 在同一主机直接运行时：
 | 首次启用外部页面，或更改 Manager Server 的页面路径 | 重启 Manager Server 一次 |
 | 迁移插件数据目录，或旧宿主不支持动态库热升级 | 安排相应服务重启 |
 
-Manager Server 在另一台主机或独立容器中时，在其运行环境安装 `commandcodebridge_0.2.8_cpamp-web.zip` 内的 `management.html`，通过 `PANEL_PATH` 或 `panelPath` 托管。面板基于 CPAMP 源码 `dbf61dd`；不同版本应在匹配源码上应用适配。
+Manager Server 在另一台主机或独立容器中时，在其运行环境安装 `commandcodebridge_0.2.9_cpamp-web.zip` 内的 `management.html`，通过 `PANEL_PATH` 或 `panelPath` 托管。面板基于 CPAMP 源码 `dbf61dd`；不同版本应在匹配源码上应用适配。
 
 **完整周期快照另需 Manager Server 接受 `commandcode` 平台。** 前端包附带适配脚本、服务器名单补丁和测试；按现有 Manager Server 的同一源码版本重建并部署。仅更新插件和页面不能替代这个服务器改动。[原生集成说明](./integrations/cpamp/README.md)包含构建、HTTP 生效核验和回滚步骤。
 
@@ -99,7 +99,7 @@ CPAMP 套餐名统一显示 **Go、GOAT、Pro、Max**。月额度与 5h 顶部�
 完整配置见 [config.example.yaml](./config.example.yaml)。日常设置和模型映射可在插件控制台修改，保存后即时生效。已保存的 `settings.json` 通常优先于初始 YAML；显式非空的 CPAMP 路径配置按部署说明处理。
 
 - `auth-dir`：上游凭证及会话恢复副本。
-- `data_dir`：设置、模型映射、最近请求日志和统计数据。
+- `data_dir`：设置、模型映射、最近请求日志、统计数据，以及 `usage.json` 中的额度观察。v0.2.9 在重启和页面重新打开后恢复上次额度；凭证页每 30 秒同步服务端缓存与最近请求。额度刷新失败保留上次值和真实采集时间，更换密钥后不复用旧额度。
 - Docker 部署应持久化以上目录和插件目录，并使用容器内路径。
 - 出站网络复用 CPA 的全局代理；当前宿主通用 HTTP RPC 不支持凭据级代理。
 - 同账号多个 key 共享额度及账号／模型冷却，额度不相加。

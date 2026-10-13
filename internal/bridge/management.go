@@ -320,6 +320,7 @@ func (s *Service) deleteCredential(cid string) (any, error) {
 	delete(s.usage, cid)
 	delete(s.accounts, cid)
 	s.revoked[cid] = true
+	s.persistDirty = true
 	s.mu.Unlock()
 	return map[string]bool{"deleted": true}, nil
 }
