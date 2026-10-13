@@ -157,6 +157,18 @@ func (s *Service) configure(raw json.RawMessage) error {
 				return fail(500, "stored statistics are invalid")
 			}
 		}
+		if b, e := os.ReadFile(filepath.Join(c.DataDir, "usage.json")); e == nil {
+			var saved map[string]persistedUsage
+			if json.Unmarshal(b, &saved) != nil {
+				return fail(500, "stored quota observations are invalid")
+			}
+			for cid, item := range saved {
+				s.usage[cid] = &usageCache{fingerprint: item.Fingerprint, value: item.Value}
+				if item.Account != "" {
+					s.accounts[cid] = item.Account
+				}
+			}
+		}
 		s.loaded = true
 	}
 	if len(s.logs) > c.LogRetention {
@@ -319,9 +331,10 @@ func (s *Service) parseAuth(raw json.RawMessage) (any, error) {
 		s.mu.Unlock()
 		return nil, fail(401, "credential removed")
 	}
-	if old, ok := s.creds[c.ID]; ok && (old.APIKey != c.APIKey || old.Disabled != c.Disabled || old.ProxyURL != c.ProxyURL) {
+	if cached := s.usage[c.ID]; cached != nil && cached.fingerprint != shaKey(c.APIKey+"|"+c.ProxyURL+"|"+s.cfg.BaseURL) {
 		delete(s.usage, c.ID)
 		delete(s.accounts, c.ID)
+		s.persistDirty = true
 	}
 	s.creds[c.ID] = c
 	s.files[c.ID] = filepath.Base(r.FileName)
@@ -358,7 +371,17 @@ func (s *Service) credentials() []map[string]any {
 	defer s.mu.RUnlock()
 	out := []map[string]any{}
 	for _, c := range s.creds {
-		out = append(out, map[string]any{"id": c.ID, "label": c.Label, "disabled": c.Disabled, "priority": c.Priority, "has_key": c.APIKey != "", "usage": usageView(s.usage[c.ID]), "health": s.credentialHealthLocked(c, time.Now()), "shared_credentials": s.sharedCountLocked(c.ID)})
+		item := map[string]any{"id": c.ID, "file_name": s.files[c.ID], "routing_id": routingID(c, s.files[c.ID]), "key_updated_at": c.KeyUpdatedAt, "label": c.Label, "disabled": c.Disabled, "priority": c.Priority, "has_key": c.APIKey != "", "usage": usageView(s.usage[c.ID]), "health": s.credentialHealthLocked(c, time.Now()), "shared_credentials": s.sharedCountLocked(c.ID), "recent_requests": s.credentialRecentRequestsLocked(c)}
+		item["credential_revision"] = shaKey(c.APIKey + "|" + c.ProxyURL + "|" + s.cfg.BaseURL)
+		if cached := s.usage[c.ID]; cached != nil && cached.value.UpdatedAt != nil {
+			// The management snapshot is explicitly annotated with Usage status.
+			// Retain unavailable sections for display without publishing them as
+			// fresh native quota observations.
+			last := cached.value
+			last.Unavailable, last.PlanStale = nil, false
+			item["quota"] = normalizeQuota(last)
+		}
+		out = append(out, item)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i]["priority"].(int) != out[j]["priority"].(int) {
@@ -399,6 +422,7 @@ func (s *Service) saveConfig(c Config) error {
 		s.accounts = map[string]string{}
 		s.cooldown = map[string]time.Time{}
 		s.probes = map[string]bool{}
+		s.persistDirty = true
 	}
 	creds := []Credential{}
 	for _, v := range s.creds {

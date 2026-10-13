@@ -21,6 +21,33 @@ type CredentialHealth struct {
 	RecentFailed   int        `json:"recent_failed"`
 }
 
+type RecentRequest struct {
+	TimestampMS int64  `json:"timestamp_ms"`
+	Failed      bool   `json:"failed"`
+	Status      int    `json:"fail_status_code,omitempty"`
+	Summary     string `json:"fail_summary,omitempty"`
+	Kind        string `json:"header_error_kind,omitempty"`
+}
+
+// Retained request history survives restarts and does not disappear merely
+// because no request was made in the last 24 hours. Local cooldown skips are
+// not upstream attempts and must not overwrite the latest actual result.
+func (s *Service) credentialRecentRequestsLocked(c Credential) []RecentRequest {
+	out := []RecentRequest{}
+	for i := len(s.logs) - 1; i >= 0 && len(out) < 10; i-- {
+		entry := s.logs[i]
+		if entry.CredentialID != c.ID || entry.UpstreamSkipped || (c.KeyUpdatedAt != nil && entry.Time.Before(*c.KeyUpdatedAt)) {
+			continue
+		}
+		r := RecentRequest{TimestampMS: entry.Time.UnixMilli(), Failed: entry.Status >= 400}
+		if r.Failed {
+			r.Status, r.Summary, r.Kind = entry.Status, entry.Error, entry.ErrorKind
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 // Caller holds s.mu. Counts refer to retained logs from the past 24 hours.
 func (s *Service) credentialHealthLocked(c Credential, now time.Time) CredentialHealth {
 	h := CredentialHealth{Status: "unknown", Reason: "等待账户查询或模型请求", CooldownModels: []string{}}

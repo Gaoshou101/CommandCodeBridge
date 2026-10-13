@@ -21,7 +21,7 @@ type Usage struct {
 	Error             string        `json:"error,omitempty"`
 	Unavailable       []string      `json:"unavailable"`
 	Plan              string        `json:"plan"`
-	PlanStale         bool          `json:"-"`
+	PlanStale         bool          `json:"plan_stale,omitempty"`
 	SubscriptionStart *time.Time    `json:"subscription_start"`
 	SubscriptionEnd   *time.Time    `json:"subscription_end"`
 	Monthly           *float64      `json:"monthly_credits"`
@@ -115,7 +115,7 @@ func (s *Service) credentialUsage(cid, callback string, refresh bool) (Usage, er
 		if refresh {
 			ttl = 10 * time.Second
 		}
-		if cached.value.Status == "error" {
+		if cached.value.Status == "error" && !refresh {
 			ttl = 5 * time.Minute
 		}
 		if cached.value.CheckedAt != nil && time.Since(*cached.value.CheckedAt) < ttl {
@@ -162,6 +162,7 @@ func (s *Service) credentialUsage(cid, callback string, refresh bool) (Usage, er
 		s.mu.Lock()
 		if s.usage[cid] == cached && shaKey(s.creds[cid].APIKey+"|"+s.creds[cid].ProxyURL+"|"+s.cfg.BaseURL) == fingerprint && !s.creds[cid].Disabled {
 			cached.value = value
+			s.persistDirty = true
 			if account != "" {
 				s.accounts[cid] = account
 			}

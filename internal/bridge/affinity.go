@@ -123,9 +123,10 @@ func (s *Service) saveCredential(c Credential) error {
 		s.mu.Unlock()
 	}
 	s.mu.Lock()
-	if old, ok := s.creds[c.ID]; ok && (old.APIKey != c.APIKey || old.Disabled != c.Disabled || old.ProxyURL != c.ProxyURL) {
+	if old, ok := s.creds[c.ID]; ok && (old.APIKey != c.APIKey || old.ProxyURL != c.ProxyURL) {
 		delete(s.usage, c.ID)
 		delete(s.accounts, c.ID)
+		s.persistDirty = true
 	}
 	s.creds[c.ID] = c
 	s.mu.Unlock()
