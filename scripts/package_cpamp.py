@@ -19,6 +19,8 @@ if not panel.is_file() or not license_file.is_file():
 page = panel.read_bytes()
 if b"data-commandcode-native-quota" not in page:
     parser.error("page does not contain the native CommandCode quota integration")
+if b"data-commandcode-native-windows" not in page:
+    parser.error("page does not contain native CommandCode quota window history integration")
 if b"/commandcodebridge/auth/callback" not in page or b"commandcode_callback_placeholder" not in page:
     parser.error("page does not contain the native CommandCode localhost callback integration")
 

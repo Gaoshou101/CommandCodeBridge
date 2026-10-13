@@ -1,6 +1,14 @@
 # CPAMP 部署、升级与回滚
 
-目标 CPAMP 为 `https://cpa.gdp.pw/`。2026-10-12 已通过 SSH 只读核实部署路径和实际页面；本文区分本地发布验证与目标服务部署，不表示已安装到目标服务器。
+本文说明 CommandCodeBridge v0.2.8 的安装、页面更新与回滚。路径应以实际运行环境为准；历史排查中的路径仅用于说明当时的问题。
+
+## v0.2.8：额度修复与原生窗口
+
+v0.2.8 的四平台插件内嵌新版 CPAMP 页面，支持官方套餐月限额、真实月余额和原生窗口历史／预测；独立 `commandcodebridge_0.2.8_cpamp-web.zip` 与内嵌页面一致。
+
+升级插件至 v0.2.8 并确认运行版本，再在「设置 → CPAMP 原生面板」更新页面、检查生效状态和强刷浏览器。旧 v0.2.7 的内嵌页面不含此修复，应先升级插件再使用更新入口。
+
+完整周期快照需要 Manager Server 的平台名单包含 `commandcode`。发行包提供 `integrations/cpamp/apply.py`、服务器名单补丁及 SQLite 回归测试；在与现有 Manager Server 相同的源码版本应用脚本，在 `apps/manager-server` 运行 `go test ./internal/service/quotasnapshot -run TestCommandCode -count=1`，备份数据库与二进制后重建、替换并重启该服务。页面安装入口只处理 HTML，不替换 Manager Server。已应用此补丁的实例无需重复重建，具体见[原生集成](../integrations/cpamp/README.md)。
 
 ## v0.2.7：热更新与重启边界
 
@@ -13,7 +21,7 @@
 | 首次从内嵌页面切换到外部页面，或改变 Manager Server 的页面路径 | 该 Manager Server 的路径在启动时读取，需要重启一次 |
 | 迁移插件 `data_dir`、旧宿主不支持热升级、覆盖被加载的动态库 | 安排维护窗口重启，不把配置热加载当作二进制替换 |
 
-推荐升级流程：在插件商店升级至 `v0.2.7`，确认插件控制台运行版本，然后进入「设置 → CPAMP 原生面板」更新页面并检查生效状态。已启用的 JSON `panelPath` 与环境变量 `PANEL_PATH` 都支持原路径页面热替换，插件不主动重启服务。页面与运行文件匹配时会显示可热更新；文件写入成功仍需实际 HTTP 页面核验。
+推荐升级流程：在插件商店升级至 `v0.2.8`，确认插件控制台运行版本，然后进入「设置 → CPAMP 原生面板」更新页面并检查生效状态。已启用的 JSON `panelPath` 与环境变量 `PANEL_PATH` 都支持原路径页面热替换，插件不主动重启服务。页面与运行文件匹配时会显示可热更新；文件写入成功仍需实际 HTTP 页面核验。
 
 配置热生效不代表直接编辑任意文件都会自动加载。日常请求设置以控制台的 `settings.json` 为准；已保存设置仍优先于初始 YAML，CPAMP 的显式路径除外。不要通过删除 `settings.json` 来强行刷新配置。插件热升级会短暂切换执行器，进行中的流可能中断，宜在空闲时升级。
 
@@ -33,7 +41,7 @@ v0.2.6 从实际进程识别环境变量模式，返回 PID、真实配置位置
 
 CPA 与 CPAMP Manager Server 直接运行在同一主机时：
 
-1. 在支持热升级的 CPA 插件商店升级 CommandCodeBridge 至 v0.2.7，确认运行版本。旧宿主或手动覆盖已加载动态库时再安排 CPA 重启。页面已内置到动态库，商店安装也能使用。
+1. 在支持热升级的 CPA 插件商店升级 CommandCodeBridge 至 v0.2.8，确认运行版本。旧宿主或手动覆盖已加载动态库时再安排 CPA 重启。页面已内置到动态库，商店安装也能使用。
 2. 打开插件控制台的「设置 → CPAMP 原生面板」，点击「安装原生面板」。默认查找 Linux 正在运行的 `cpa-manager-plus`、官方安装目录 `~/cpa-manager-plus` 及 `run.sh` 指向的 runtime。
 3. 首次从内嵌页面切换时，按原方式重启 **Manager Server**，返回点击「检查生效状态」，确认「原生面板已生效」。后续更新已配置的页面通常只需强制刷新浏览器。已有 `PANEL_PATH` 时直接更新它实际指向的页面。
 4. 原生凭证列表、卡片或详情额度页点击「刷新额度」，现有 API key 账号无需重新导入。OAuth 继续使用 v0.2.4 的浏览器电脑本地接收器。
@@ -76,7 +84,7 @@ Manager Server 无法打开文件时会回退到内置页面，因此安装后�
 python3 verify_cpamp_panel.py https://cpa.gdp.pw/management.html --expected '/实际绝对路径/management.html'
 ```
 
-脚本随两类 ZIP 提供，不需要管理密钥；应显示三项 `PASS` 和 `expected_page: MATCH`。若失败，检查运行进程的环境、文件读取权限、代理目标和缓存，再强刷浏览器。现有 API key 凭证无需重新导入；在原生列表、卡片或详情额度页点击「刷新额度」。余额与窗口百分比使用上游实际值；缺少月上限时显示未知。
+脚本随两类 ZIP 提供，不需要管理密钥；应显示 `native_quota`、`native_window_history`、`native_callback`、`post_receiver_instructions` 四项 `PASS` 和 `expected_page: MATCH`。若失败，检查运行进程的环境、文件读取权限、代理目标和缓存，再强刷浏览器。现有 API key 凭证无需重新导入；在原生列表、卡片或详情额度页点击「刷新额度」。余额与窗口百分比使用上游实际值；缺少月上限时显示未知。
 
 OAuth 还需在**浏览器所在电脑**运行 `commandcodebridge-login`。Windows 从 Windows ZIP 解压并运行 `.exe`，无需在远端 Linux 服务器运行此接收器。在 CPAMP 重新开始登录，复制官方授权链接到接收器，授权后复制接收器显示的认证结果到原生卡片提交。官方回传是 POST 正文，地址栏的裸 callback 无法交付凭证；v0.2.3 的地址栏方案需要升级。详细步骤见 [CPAMP 前端适配](../integrations/cpamp/README.md)。
 
@@ -99,13 +107,13 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存配置并重载，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.7`，点击安装。支持热升级的宿主自动选择 ZIP、验证校验值、写入版本化插件文件并切换运行版本；只有旧宿主或安装器明确要求时再安排重启。同机二进制的原生页面通过插件设置安装或热更新；浏览器电脑的接收器需从对应平台 ZIP 取出。随后核实插件启用和运行版本，按下方验收步骤添加 Studio key 和模型。
+保存配置并重载，在 CPAMP「插件商店」选择 CommandCodeBridge，版本选 Latest 或 `v0.2.8`，点击安装。支持热升级的宿主自动选择 ZIP、验证校验值、写入版本化插件文件并切换运行版本；只有旧宿主或安装器明确要求时再安排重启。同机二进制的原生页面通过插件设置安装或热更新；浏览器电脑的接收器需从对应平台 ZIP 取出。随后核实插件启用和运行版本，按下方验收步骤添加 Studio key 和模型。
 
 GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上面的 JSON 链接。若当前面板没有源配置入口，可通过 CPA 配置文件添加。服务器需能访问 `raw.githubusercontent.com`、`api.github.com` 和 GitHub 下载地址；无法访问时检查现有 CPA 全局代理。
 
 ## 手动下载安装包
 
-从 [v0.2.6 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.6) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。动态库按 CPA 服务器平台选择；本地接收器按浏览器电脑平台选择，两者可能不同。
+从 [Latest Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/latest) 下载对应平台 ZIP 和 `checksums.txt`，可匿名下载。动态库按 CPA 服务器平台选择；本地接收器按浏览器电脑平台选择，两者可能不同。
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |

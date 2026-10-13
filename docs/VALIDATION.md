@@ -1,5 +1,14 @@
 # 开发验证记录
 
+## CPAMP 月额度与套餐显示修正（2026-10-13，当前源码）
+
+- 按用户提供的官方 [Pricing & Limits](https://commandcode.ai/docs/resources/pricing-limits) 核实当前 Go 10、GOAT 70、Pro 80、Max 10× 150、Max 20× 300 credits。对照官方 npm `command-code@1.81.0` 的 `getPlanTotalCredits`：`individual-pro` 是旧版 30，`individual-pro-v1` 为新版 80；`individual-max` 为 150，`individual-ultra` 为 300。显示名统一为 Go、GOAT、Pro、Max，计算保留原始 ID，真实上游月 cap／比例优先。
+- 月百分比仅使用 `monthly_credits`，购买／免费 credits 不混入；列表、详情、状态汇总和周期快照共享规则。实际 GOAT 月余额 `61.0826068507` 显示 `61.083 / 70 credits`、剩余 `87%`。
+- 两个相关前端测试文件共 15 项通过，覆盖各套餐、旧 Pro、新 Pro、Max 两档、真实 cap 优先、缺失余额、部分失败和原生历史／快照；TypeScript 检查与单文件生产构建通过。
+- Chromium 连接实际接口和部署后页面，验证表格／卡片的月额度标题及进度条与 5h 高度相同、中间边框为 0；390px 深色卡片不溢出。额度详情和概览均显示 87%，月历史采用真实 10/02–11/02 订阅周期，历史与快照读写返回 200，浏览器 runtime errors 为 0。
+- 已备份并原子热替换现有外部页面，Manager Server PID 保持不变；公网根路径重定向到 `/management.html`，页面校验值与本地一致：`cabcf28c8191c45d6b3f30ac5b2a03b6eabb924c1fe589e409f8103792c42928`。本次未发付费模型请求。
+- 上述为发布前的页面现场验证。v0.2.8 发行构建从当前适配源码生成并内嵌页面；旧 v0.2.7 包内仍是旧页面，应升级插件后再使用「更新原生面板」。
+
 ## v0.2.5 CPAMP 二进制面板一键安装（2026-10-12）
 
 - 核对上游 `bin/install-cpamp.sh`：官方默认安装目录为 `${HOME}/cpa-manager-plus`，活动 runtime 标记写入 `run.sh`，配置位于 runtime 二进制目录；直接运行原生包由程序默认读取二进制旁 `config.json`。

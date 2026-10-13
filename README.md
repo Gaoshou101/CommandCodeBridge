@@ -1,140 +1,123 @@
-# CommandCodeBridge
+<h1 align="center">CommandCodeBridge</h1>
 
-接入 [CommandCode](https://commandcode.ai/docs/provider) 的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 原生插件，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。版本 `0.2.7`；C ABI 1 / RPC schema 6。
+<p align="center">将 CommandCode Provider API 接入 CLIProxyAPI，在 CPAMP 中管理凭证、模型、额度和请求记录。</p>
+
+<p align="center"><a href="https://github.com/Gaoshou101/CommandCodeBridge/releases/latest">下载最新版</a> · <a href="./CHANGELOG.md">更新记录</a> · <a href="./docs/DEPLOYMENT.md">部署说明</a></p>
 
 ## 功能
 
-- 多个 Studio API key：添加、备注、编辑、停用、删除和 0–100 优先级。删除前确认 CPA 已停用登记。
-- 会话重新分配：CPA watcher 轮换账号登记 ID，保留恢复副本。
-- 公开模型目录、选择导入、手动添加、客户端别名、逐模型思考强度映射。
-- Chat Completions、Responses、Anthropic Messages；流式/非流式、工具调用和图片。
-- Claude 原生 Messages 保留 thinking signature；原生历史直接转发至 Messages 上游。
-- 套餐、剩余 credits、月度/5 小时/周窗口、到期时间和账号请求数；采样、缓存、共享账号标识、失败保留旧值。
-- 凭证健康度、共享模型冷却与最近请求状态；可展开的请求日志、实际 tokens、缓存读取/写入、首字耗时、输出速率及模型/时间统计。
-- 429 冷却与恢复探测、401/403 状态传播、脱敏、完整 SSE 和工具参数检查。
-- 中文管理页、CPA/CPAMP 登录适配、子目录代理、明暗主题和手机布局。
-- CPAMP OAuth 入口支持官方网页登录、状态轮询及 Studio key 手动回退；CPA 原生 QuotaProvider 输出套餐、真实余额和额度窗口。
-- CPAMP 原生凭证卡片及详情页展示需要同时安装 [CPAMP 前端适配](integrations/cpamp/README.md)。当前 CPAMP 内置平台额度列表不自动识别新插件。
+- **多凭证管理**：添加 Studio API key 或通过官方网页登录授权，支持备注、优先级、停用、删除和会话重新分配。
+- **模型映射**：读取官方模型目录，选择导入，设置客户端别名、协议和逐模型思考强度。
+- **协议接入**：支持 Chat Completions、Responses、Anthropic Messages，包含流式响应、工具调用和图片；原生 Messages 历史保留 Claude thinking signature。
+- **原生额度窗口**：在 CPAMP 列表、卡片和详情查看 5h、周、月额度，查询窗口请求统计、预测和周期快照。
+- **请求记录**：查看凭证健康度、tokens、缓存用量、预估花费、首字耗时、输出速率及模型统计；支持明暗主题和手机布局。
 
-**范围：官方 Provider API。Go 订阅 `/alpha/generate` 和固定上游 provider 不包含在本插件中。** 用量查询使用账户 `/alpha/...` 查询接口。
+当前版本 **v0.2.8**。插件调用官方 Provider API；Go 订阅的 `/alpha/generate` 路径和固定上游 provider 模式不在支持范围内。账户用量通过官方 `/alpha/...` 查询接口读取，模型权限以实际套餐为准。
 
-## 安装
+## 快速安装
 
-仓库已公开，支持 GitHub 链接安装，无需 GitHub Token。将插件源 [registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json) 加入 CPA `plugins.store-sources`，在 CPAMP 插件商店选择 CommandCodeBridge 安装。完整配置及验收步骤见 [部署说明](docs/DEPLOYMENT.md)。
+需要启用插件的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)。四个平台的原生宿主联测基线为 **CPA v8.0.23**；名称含 `no-plugin` 的宿主构建不能加载本插件。
 
-也可从 [GitHub Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases) 下载对应平台 ZIP 和校验文件，手动安装。
-
-需要带插件支持的 CPA，已在 Linux amd64/arm64、Windows amd64 和 macOS arm64 验证 **v8.0.23**。发布文件名含 `no-plugin` 的构建不能加载插件。库必须匹配宿主系统、CPU 和 C 运行库；当前 Linux 包要求 glibc ≥2.34，适用于 CPA 官方 Debian 容器。Alpine/musl 需重新构建。
-
-1. 解压 ZIP，将 `commandcodebridge.so`（Windows：`.dll`；macOS：`.dylib`）复制到 CPA `plugins.dir`。
-2. 将 [config.example.yaml](config.example.yaml) 合并至 CPA 配置，调整目录。首次 `models` 留空。
-3. 让支持插件热重载的 CPA 重新加载配置，确认运行版本和 `plugin loaded plugin_id=commandcodebridge`，且无 `invalid metadata or no capabilities`。旧宿主或直接覆盖正在加载的库时需停机重启；推荐通过插件商店使用版本化文件升级。
-4. 打开 `http://你的CPA地址:端口/v0/resource/plugins/commandcodebridge/console`。
-5. 用 **CPA 管理密钥**登录，在「凭据与用量」添加 CommandCode Studio API key，在「模型映射」获取目录并选择导入。
-6. 客户端使用 CPA API 地址、**CPA 客户端密钥**和模型别名，默认去掉供应商前缀，例如 `glm-5.3-flash`、`deepseek-v4.1-flash`。
-
-插件不另开端口。页面可公开加载，数据及写操作由 CPA 管理鉴权保护。CPAMP 完整代理模式可选择 `X-Management-Key`；真实 CPAMP 部署需现场验证。
-
-`0.2.4` 修正官方 OAuth POST 回调：**同时升级插件和 CPAMP 管理页面**，并在浏览器所在电脑运行安装包内的 `commandcodebridge-login`（Windows 为 `.exe`）。在 CPAMP 原生登录卡片复制官方授权链接，粘贴到本地接收器并授权；复制接收器显示的「认证结果」，返回卡片提交。官方把凭证放在 POST 正文中，裸 `localhost:45879/callback` 地址没有凭证；`v0.2.3` 的地址栏复制方案不完整。远端 CPA 无需开放回调端口。步骤和二进制部署说明见 [原生凭证集成说明](integrations/cpamp/README.md)。
-
-`0.2.5` 将新版 CPAMP 页面内置到插件动态库。**同机二进制部署**只需进入插件控制台「设置 → CPAMP 原生面板」，点击「安装原生面板」，首次切换后重启 Manager Server 并检查生效状态。自动识别 Linux 运行实例、官方默认 `~/cpa-manager-plus` 与活动 runtime；自定义目录可在同处或插件配置项 `cpamp_install_dir` 修改。安装会备份原文件、写入页面并配置 `panelPath`，不需要另下载页面或手动 export。已有 `PANEL_PATH` 时更新其指向的文件。现有 API key 账号无需重新添加，页面更新后点击「刷新额度」。CPA 与 Manager Server 分处不同主机/容器时，仍需在 Manager Server 所在主机安装页面；步骤见 [部署说明](docs/DEPLOYMENT.md)。
-
-`0.2.6` 修复 Linux CPAMP 环境变量部署没有 `config.json` 时误报「未找到同机 CPAMP」。检测显示真实 PID、配置来源与实际服务页面的原生额度组件状态，检查过程不创建文件。执行安装时才创建必要配置；已有 `PANEL_PATH` 的页面更新不需要重启。首次从内嵌页面切换仍需由维护者安排 Manager Server 重启。
-
-`0.2.7` 精简原生额度为左侧 5h / 周额度上下两排、右侧月额度单列。**日常配置保存立即生效，无需重启**；已启用外部页面后，点击「更新原生面板」原路径热替换，强刷浏览器即可。插件二进制升级由支持热升级的 CPA 宿主加载版本化文件；首次修改 Manager Server 的面板路径或迁移插件数据目录仍需重启。详情见[热更新边界](docs/DEPLOYMENT.md#v027热更新与重启边界)。
-
-Docker 应持久化以下目录，以及现有 CPA auth-dir：
+将以下源合并到现有 CPA 配置，保留已有插件源和其他配置：
 
 ```yaml
-volumes:
-  - ./plugins:/CLIProxyAPI/plugins
-  - ./commandcodebridge-data:/CLIProxyAPI/commandcodebridge-data
+plugins:
+  enabled: true
+  store-sources:
+    - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-```bash
-curl http://127.0.0.1:8317/v1/chat/completions \
-  -H "Authorization: Bearer YOUR_CPA_CLIENT_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"YOUR_MODEL_ALIAS","messages":[{"role":"user","content":"你好"}],"stream":true}'
-```
+保存并重载配置，在 CPAMP「插件商店」找到 **CommandCodeBridge**，选择 Latest 或 **v0.2.8** 安装。支持热升级的宿主会下载匹配平台的 ZIP、验证校验值并切换版本；安装后检查插件控制台显示的运行版本。
 
-## 思考与协议
+也可从 [Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases/latest) 手动下载 ZIP 和 `checksums.txt`。按 **CPA 所在服务器**选择动态库：
 
-依据 `supported_endpoints` 选择上游：有 `/chat/completions` 时使用 Chat，否则使用 `/messages`。Responses 转换由 CPA 完成。上游总是流式，非流式请求聚合至完整终态。
-
-映射例：`{"unset":"low","medium":"high","ultra":"max"}`。`unset` 表示客户端未指定；未命中则透传。显式 `thinking`/`reasoning` 不被 `unset` 的默认映射覆盖。
-
-| Anthropic 模式 | 参数 | 映射 |
+| 平台 | 安装包后缀 | 动态库 |
 | --- | --- | --- |
-| Adaptive | `thinking.type=adaptive` + `output_config.effort` | Claude 4.6 及更新模型默认；minimal→low、xhigh→high、ultra→max |
-| Budget | `thinking.type=enabled` + `budget_tokens` | 较早模型默认；minimal/low/medium/high/xhigh/max/ultra→1024/2048/4096/8192/16384/32768/32768 |
-| none | `thinking.type=disabled` | 关闭思考 |
+| Linux x64 | `_linux_amd64.zip` | `commandcodebridge.so` |
+| Linux ARM64 | `_linux_arm64.zip` | `commandcodebridge.so` |
+| Windows x64 | `_windows_amd64.zip` | `commandcodebridge.dll` |
+| macOS Apple Silicon | `_darwin_arm64.zip` | `commandcodebridge.dylib` |
 
-模型编辑可修改协议。Budget 的 `max_tokens` 必须大于思考预算，否则返回 400。模型支持的强度以实际上游为准。
+Linux 发布包要求 glibc ≥2.34；Alpine/musl 需自行构建。手动安装时核验校验值，将动态库放入实际 `plugins.dir`，合并 [config.example.yaml](./config.example.yaml)，按宿主的加载方式启用插件。完整步骤见[部署说明](./docs/DEPLOYMENT.md)。
 
-原生 Messages→Messages 保留签名和历史。Chat 客户端重放 Claude 思考需保留扩展字段 `reasoning_signature`。Responses 等跨协议调用依赖 CPA 的转换，可能无法保留所有供应商专用字段。未实现服务器工具、视频或精确 token 计数。
+## 快速开始
 
-## 数据与调度
+1. 在 CPAMP 打开 CommandCodeBridge 插件控制台，或访问 CPA 地址下的 `/v0/resource/plugins/commandcodebridge/console`。直接访问时使用 **CPA 管理密钥**登录。
+2. 在「凭据与用量」添加 **CommandCode Studio API key**，点击刷新，确认套餐和真实余额。
+3. 在「模型映射」获取目录，选择当前套餐可用的模型并导入；按需要设置客户端别名。
+4. 在客户端填写 **CPA API 地址、CPA 客户端密钥、已导入的模型别名**，即可调用。
 
-- API key 仅存 CPA `auth-dir`；管理列表不返回 key，日志不保存请求正文。
-- 会话恢复副本含凭据，存于 `auth-dir/.commandcodebridge-affinity-backups/`。稳定账号 ID 与调度 ID 分开，重分配不丢统计。
-- `data_dir/settings.json` 保存设置/模型；`requests.json` 保存最近日志；`statistics.json` 保存独立分钟统计。清空统计保存恢复副本，日志保留。
-- 已存 `settings.json` 优先于初始 YAML。更换 data_dir 需重启；重新应用 YAML 前应迁移或移除旧设置。
-- CPA 负责优先级和会话绑定；重新分配等待 watcher 确认，运行中的生成继续完成。
-- HTTP 使用 **CPA 全局代理**，例如 v8 的 `requests.proxy-url`。凭据级 `proxy_url` 明确报错；宿主通用 HTTP RPC 不提供该能力。请求级代理尚未支持。
-- 同账号多 key 用上游用户/组织身份关联，额度不相加。429 按账号与上游模型共享冷却；身份未知时按 key 处理。
-- 月额度窗口使用账户月余额、本期月额度消耗和订阅重置时间；上游未返回月上限时显示未知，不按套餐价格或周窗口估算。
-- 凭证健康度依据账户查询、过去 24 小时保留的请求和账号/模型共享冷却；更新密钥后不沿用旧密钥的请求健康状态。
-- 未知用量显示 `—`；查询失败保留旧值并标记过期，部分失败标明相关字段。不用缺失字段估算余额。
-- 输出速率仅针对有实际 usage、首字后耗时 ≥500ms 的请求计算。
-- 日志/统计每 250ms 批量持久化，正常卸载等待请求结束并最终刷盘。强制退出或断电可能丢失尚未刷盘的记录；磁盘写入失败会显示错误并重试。双 JSON 文件不提供跨文件事务。
-- 本地模拟基准在 32 并发下约 212 请求/秒；这不是实际 CommandCode 或生产环境容量。测试条件与前后对比见 [验证记录](docs/VALIDATION.md)。
+管理密钥、客户端密钥和 CommandCode Studio API key 分别用于管理、客户端调用和上游授权，不能互换。上游 key 由 CPA 保存到 `auth-dir`，无需写入模型配置。
 
-## 构建
+官方网页登录入口位于 CPAMP「OAuth 登录」。远端服务器场景下，在**浏览器所在电脑**运行安装包里的 `commandcodebridge-login`（Windows 为 `.exe`），再完成授权并提交接收器显示的认证结果。浏览器电脑与 CPA 服务器平台不同时，接收器需另下载对应电脑平台的包。详见[远程认证步骤](./integrations/cpamp/README.md#远程认证步骤)。
 
-Go ≥1.26、CGO、目标平台 C 编译器：
+## 安装或更新原生面板
 
-先构建并打包匹配版本的 CPAMP 前端（见 [前端适配说明](integrations/cpamp/README.md)），再生成插件内置页面。开发测试可不含页面，发布构建必须包含：
+**升级插件后还要更新 CPAMP 页面**，才能使用新版凭证布局。v0.2.8 动态库已内嵌匹配页面。
 
-```bash
-python3 scripts/embed_cpamp_panel.py dist/commandcodebridge_0.2.7_cpamp-web.zip
-CGO_ENABLED=1 go build -trimpath -buildvcs=false -buildmode=c-shared \
-  -ldflags="-s -w" -o dist/commandcodebridge.so ./cmd/commandcodebridge
-CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" \
-  -o dist/commandcodebridge-login ./cmd/commandcodebridge-login
-python3 scripts/package.py dist/commandcodebridge.so --target linux-amd64
-```
+CPA 与 Manager Server 在同一主机直接运行时：
 
-Windows 用 MinGW GCC 输出 `.dll`，接收器输出 `commandcodebridge-login.exe`；macOS 用 Clang 输出 `.dylib`。跨编译须提供目标 C 编译器。接收器无需 CGO，但必须与目标系统和 CPU 匹配。生成的 `.h` 安装时不需要。
+1. 打开插件控制台「设置 → CPAMP 原生面板」。
+2. 首次使用点击「安装原生面板」；已有外部页面点击「更新原生面板」。
+3. 点击「检查生效状态」，再强制刷新浏览器，在凭证页点击「刷新额度」。
 
-```bash
-docker buildx build -f Dockerfile.build --platform linux/amd64 --output type=local,dest=dist .
-# ARM64：--platform linux/arm64
-```
+| 操作 | 是否需要重启 |
+| --- | --- |
+| 保存日常插件设置，或更新已启用外部面板的文件 | 无需重启 |
+| 通过支持热升级的插件商店更新动态库 | 确认宿主已切换到新版本 |
+| 首次启用外部页面，或更改 Manager Server 的页面路径 | 重启 Manager Server 一次 |
+| 迁移插件数据目录，或旧宿主不支持动态库热升级 | 安排相应服务重启 |
 
-插件元数据默认使用本项目真实仓库地址。构建其他来源时可用 `-X commandcodebridge/internal/bridge.Repository=https://github.com/OWNER/REPO` 覆盖。GitHub Actions 配置测试及 Linux amd64/arm64、Windows amd64、macOS arm64 构建与宿主联测，上传 ZIP/SHA256，不自动发布 Release 或注册商店。
+Manager Server 在另一台主机或独立容器中时，在其运行环境安装 `commandcodebridge_0.2.8_cpamp-web.zip` 内的 `management.html`，通过 `PANEL_PATH` 或 `panelPath` 托管。面板基于 CPAMP 源码 `dbf61dd`；不同版本应在匹配源码上应用适配。
 
-## 验证
+**完整周期快照另需 Manager Server 接受 `commandcode` 平台。** 前端包附带适配脚本、服务器名单补丁和测试；按现有 Manager Server 的同一源码版本重建并部署。仅更新插件和页面不能替代这个服务器改动。[原生集成说明](./integrations/cpamp/README.md)包含构建、HTTP 生效核验和回滚步骤。
 
-```bash
-go test -race ./...
-go vet ./...
-node --test tests/cpa-auth.test.cjs
-CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_e2e.py
-CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_native_management.py
-CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_reliability.py
-CPA_BINARY=/path/to/cli-proxy-api python3 tests/cpa_benchmark.py --requests 64
-# 加 --serve 保持模拟控制台运行。
-```
+## 套餐与额度
 
-当前：30 个 Go 顶层测试（含多个子场景）、11 个登录适配测试；真实 CPA v8.0.23 在 Linux amd64/arm64、Windows amd64 和 macOS arm64 加载原生动态库，四种宿主各完成 25 次模拟成功生成及 401/403 场景，另验证 429 共享冷却与恢复、503 换号、流中断、超时、客户端取消和重启持久化。覆盖三种协议、流/非流、工具往返、图片、Claude 签名返回/重放、思考映射、优先级、会话重分配、编辑/删除、额度及 CPA 记账。
+CPAMP 套餐名统一显示 **Go、GOAT、Pro、Max**。月额度与 5h 顶部对齐，两列之间无分割线；月额度下方显示真实剩余 credits 与月上限。
 
-v0.2.5 增加默认/活动 runtime 探测、配置路径修改、私有备份、并发修改拒绝、安装回滚与 HTTP 生效检查。真实 CPAMP v1.14.0 二进制与 CPA v8.0.23 的隔离联测验证：探测运行进程 → 内置页面安装 → 配置备份 → Manager Server 重启 → 实际页面字节一致；已有 `PANEL_PATH` 时替换页面无需重启。未修改用户目标服务。
+月比例优先使用上游真实窗口比例和 cap；上游未提供月窗口时，用 `monthly_credits` 除以已核实的套餐月上限。以下依据[官方 Pricing & Limits](https://commandcode.ai/docs/resources/pricing-limits)和官方 `command-code@1.81.0`，核实于 **2026-10-13**：
 
-模拟套件只使用本地上游和虚构 key。真实账户余额、套餐、窗口与请求数已验证；免费 Ling 模型在 CPA 中通过 6 次 Chat/Responses 流与非流、工具往返，插件和 CPA 的 864 tokens 记账一致。GPT/Claude 测试模型被当前套餐拒绝，原生 Messages/图片/思考签名/ZDR 的真实验收尚未完成。未部署目标 CPAMP。ARM64/macOS 的实际宿主验证状态见 [验证记录](docs/VALIDATION.md)。
+| 套餐 | 原始套餐标识 | 月上限（credits） |
+| --- | --- | ---: |
+| Go | `individual-go` / `individual-go-v1` | 10 |
+| GOAT | `individual-goat` | 70 |
+| Pro | `individual-pro-v1` | 80 |
+| Pro（旧版） | `individual-pro` | 30 |
+| Max 10× | `individual-max` | 150 |
+| Max 20× | `individual-ultra` | 300 |
 
-真实测试脚本 `tests/commandcode_live.py` 只读取仓库之外的凭据 JSON（字段 `api_key`），默认只读。`--generate` 显式启用少量生成请求，`--chat-model` / `--messages-model` 指定实际可用的上游模型，`--tools` 增加工具往返。本机需沿用系统代理时使用 `--system-proxy`。真实测试不进入 CI。
+例如 GOAT 剩余 61.083 credits 时，显示 **61.083 / 70 credits、剩余 87%**。两种 Pro 均显示 Pro，两种 Max 均显示 Max，计算仍保留原始套餐标识。
+
+- 月余额不混入购买或免费 credits；Max 标准与高级模型限额独立，不相加。
+- 5h 和周比例采用真实上游数据，重置时间取真实窗口或订阅周期。缺失值显示 `—` 或「重置未知」。
+- 详情页的请求数、tokens、预估花费和预测来自原生窗口统计；花费为请求价格估算，不将账户 credits 当作历史美元花费。
+- 刷新失败保留上次结果并标记过期；过期比例不用于新预测。历史周期缺失时不推算上个月边界。
+
+## 配置与数据
+
+完整配置见 [config.example.yaml](./config.example.yaml)。日常设置和模型映射可在插件控制台修改，保存后即时生效。已保存的 `settings.json` 通常优先于初始 YAML；显式非空的 CPAMP 路径配置按部署说明处理。
+
+- `auth-dir`：上游凭证及会话恢复副本。
+- `data_dir`：设置、模型映射、最近请求日志和统计数据。
+- Docker 部署应持久化以上目录和插件目录，并使用容器内路径。
+- 出站网络复用 CPA 的全局代理；当前宿主通用 HTTP RPC 不支持凭据级代理。
+- 同账号多个 key 共享额度及账号／模型冷却，额度不相加。
+
+## 开发与验证
+
+原生插件构建需要 **Go ≥1.26、CGO 和目标平台 C 编译器**。发行构建先生成 pinned CPAMP 页面，再内嵌到四个平台的动态库。
+
+GitHub Actions 运行 Go race/vet、前端测试与类型检查、CPA 原生协议及异常恢复联测、CPAMP 页面安装与热更新联测，并校验四平台插件和独立前端包的来源、校验值及内嵌页面一致性。具体步骤与验证边界见以下文档。
+
+| 文档 | 内容 |
+| --- | --- |
+| [部署说明](./docs/DEPLOYMENT.md) | 商店／手动安装、路径、升级、热更新和回滚 |
+| [CPAMP 原生集成](./integrations/cpamp/README.md) | 页面构建、Manager 快照补丁、OAuth 和实际页面核验 |
+| [验证记录](./docs/VALIDATION.md) | 模拟宿主、真实接口、浏览器验证及尚未覆盖的场景 |
+| [版本说明](./docs/RELEASE_NOTES.md) | 当前发行内容与升级步骤 |
+| [更新记录](./CHANGELOG.md) | 各版本改动 |
 
 ## 许可
 
-MIT。来源与版权见 [NOTICE](NOTICE)、[LICENSE](LICENSE)。此项目是独立集成。
+本项目按 [MIT](./LICENSE) 发布，参考 [ClinePassBridge](https://github.com/xiao-qiu-qiu/ClinePassBridge)。第三方来源与版权见 [NOTICE](./NOTICE)。CommandCodeBridge 是独立集成项目。
