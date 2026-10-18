@@ -10,6 +10,14 @@ var errStreamDone = errors.New("stream complete")
 
 type Attempt struct{ Provider, ProviderSource string }
 type LogEntry struct {
+	CredentialScope                    string     `json:"credential_scope,omitempty"`
+	AccountScope                       string     `json:"account_scope,omitempty"`
+	ModelScope                         string     `json:"model_scope,omitempty"`
+	ClientProtocol                     string     `json:"client_protocol,omitempty"`
+	UpstreamProtocol                   string     `json:"upstream_protocol,omitempty"`
+	ZDRRequested                       bool       `json:"zdr_requested"`
+	UpstreamAttempted                  bool       `json:"upstream_attempted"`
+	Source                             string     `json:"source,omitempty"`
 	ID                                 string     `json:"id"`
 	Time                               time.Time  `json:"time"`
 	Model                              string     `json:"model"`
@@ -40,22 +48,23 @@ type LogEntry struct {
 	epoch                              uint64
 }
 type Counters struct {
-	Time        time.Time `json:"time"`
-	Model       string    `json:"model"`
-	Requests    int64     `json:"requests"`
-	Success     int64     `json:"success"`
-	Failed      int64     `json:"failed"`
-	Skipped     int64     `json:"skipped"`
-	WithUsage   int64     `json:"with_usage"`
-	Input       int64     `json:"input_tokens"`
-	Output      int64     `json:"output_tokens"`
-	Cached      int64     `json:"cached_tokens"`
-	CacheWrite  int64     `json:"cache_write_tokens"`
-	DurationMS  int64     `json:"duration_ms"`
-	TTFTMS      int64     `json:"ttft_ms"`
-	TTFTSamples int64     `json:"ttft_samples"`
-	SpeedTokens int64     `json:"speed_tokens"`
-	SpeedMS     int64     `json:"speed_ms"`
+	BucketSeconds int       `json:"bucket_seconds,omitempty"`
+	Time          time.Time `json:"time"`
+	Model         string    `json:"model"`
+	Requests      int64     `json:"requests"`
+	Success       int64     `json:"success"`
+	Failed        int64     `json:"failed"`
+	Skipped       int64     `json:"skipped"`
+	WithUsage     int64     `json:"with_usage"`
+	Input         int64     `json:"input_tokens"`
+	Output        int64     `json:"output_tokens"`
+	Cached        int64     `json:"cached_tokens"`
+	CacheWrite    int64     `json:"cache_write_tokens"`
+	DurationMS    int64     `json:"duration_ms"`
+	TTFTMS        int64     `json:"ttft_ms"`
+	TTFTSamples   int64     `json:"ttft_samples"`
+	SpeedTokens   int64     `json:"speed_tokens"`
+	SpeedMS       int64     `json:"speed_ms"`
 }
 
 func (a *Counters) add(b Counters) {
@@ -77,8 +86,24 @@ func (a *Counters) add(b Counters) {
 func (s *Service) newLog(r ExecutorRequest, c Credential, m Model, start time.Time) LogEntry {
 	s.mu.RLock()
 	epoch := s.statisticsEpoch
+	scope := credentialEvidenceScope(c, s.cfg)
+	account := s.accounts[c.ID]
+	zdr := s.cfg.ZDR
 	s.mu.RUnlock()
-	return LogEntry{ID: id(), Time: start.UTC(), Model: r.Model, UpstreamModel: m.UpstreamID, CredentialID: c.ID, Credential: c.Label, Stream: r.Stream, Provider: "unknown", ProviderSource: "not_reported", epoch: epoch}
+	protocol := "chat-completions"
+	// CPA can replace SourceFormat with the translated plugin input format.
+	// The original HTTP path remains authoritative for client evidence.
+	requestPath := str(r.Metadata["request_path"])
+	if strings.HasSuffix(requestPath, "/responses") || strings.Contains(strings.ToLower(r.SourceFormat), "response") {
+		protocol = "responses"
+	} else if strings.HasSuffix(requestPath, "/messages") || r.Format == "claude" {
+		protocol = "messages"
+	}
+	upstream := "chat-completions"
+	if !contains(m.Endpoints, "/chat/completions") && contains(m.Endpoints, "/messages") {
+		upstream = "messages"
+	}
+	return LogEntry{CredentialScope: scope, AccountScope: account, ModelScope: modelEvidenceScope(m), ClientProtocol: protocol, UpstreamProtocol: upstream, ZDRRequested: zdr, ID: id(), Time: start.UTC(), Model: r.Model, UpstreamModel: m.UpstreamID, CredentialID: c.ID, Credential: c.Label, Stream: r.Stream, Source: evidenceSource(r), Provider: "unknown", ProviderSource: "not_reported", epoch: epoch}
 }
 func (s *Service) record(entry LogEntry) {
 	s.mu.Lock()
@@ -139,8 +164,9 @@ func (s *Service) record(entry LogEntry) {
 			}
 		}
 		s.statistics[key] = c
+		s.markDirtyLocked(dirtyStatistics)
 	}
-	s.persistDirty = true
+	s.markDirtyLocked(dirtyLogs)
 }
 func contentStarted(j map[string]any) bool {
 	for _, v := range list(j["choices"]) {
@@ -233,9 +259,17 @@ func (s *Service) statisticsView(r ManagementRequest) any {
 	from, to := rangeTimes(r)
 	total := Counters{}
 	models := map[string]Counters{}
+	resolution := 60
 	for _, c := range s.statistics {
-		if (!from.IsZero() && c.Time.Before(from)) || (!to.IsZero() && !c.Time.Before(to)) {
+		seconds := c.BucketSeconds
+		if seconds == 0 {
+			seconds = 60
+		}
+		if (!from.IsZero() && !c.Time.Add(time.Duration(seconds)*time.Second).After(from)) || (!to.IsZero() && !c.Time.Before(to)) {
 			continue
+		}
+		if seconds > resolution {
+			resolution = seconds
 		}
 		total.add(c)
 		v := models[c.Model]
@@ -256,5 +290,5 @@ func (s *Service) statisticsView(r ManagementRequest) any {
 		v := float64(total.TTFTMS) / float64(total.TTFTSamples)
 		ttft = &v
 	}
-	return map[string]any{"totals": total, "models": models, "output_tokens_per_second": speed, "cache_hit_percent": hit, "average_ttft_ms": ttft, "storage_error": s.storageError}
+	return map[string]any{"totals": total, "models": models, "output_tokens_per_second": speed, "cache_hit_percent": hit, "average_ttft_ms": ttft, "storage_error": s.storageError, "storage": s.storageStatusLocked(), "bucket_seconds": resolution, "range_note": "历史日级统计按重叠整日纳入，自定义范围边界可能扩大至 UTC 日"}
 }

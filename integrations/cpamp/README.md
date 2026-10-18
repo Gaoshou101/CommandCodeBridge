@@ -122,3 +122,16 @@ loopback 指浏览器所在电脑。CPA 不需要监听 `45879`，无需开放�
 ## 回滚
 
 恢复备份的管理页面和插件库，重启 CPA。新增凭证仍为正常 `type: commandcode` 文件，不需要修改现有模型映射或迁移数据库。
+
+## v0.2.10 源码能力检查
+
+开发中的适配脚本增加页面能力元信息，并给 Manager Server 的匿名 `GET /health` 添加 `capabilities.commandcode_quota_snapshots_v1` 布尔值，取自实际 `quotasnapshot.validProviders` 名单。该检查不读取或写入用户快照；旧服务器未声明能力时插件显示「未确认」。
+
+在匹配源码上先运行 `apply.py --check`，再应用；全部插入点检查通过后才写入，重复应用安全。报错会列出缺失文件或不匹配插入点及已验证基线，不能据此认为任意上游版本均兼容。后端验证命令：
+
+```bash
+cd /path/to/CPA-Manager-Plus/apps/manager-server
+go test ./internal/service/quotasnapshot ./internal/http/controller/health -run TestCommandCode -count=1
+```
+
+页面更新与后端更新分别生效。仅复制 HTML 无法新增后端健康能力；需按现有部署方式重建、备份并替换 Manager Server 后重启。已支持快照但尚无新健康声明的后端仍可工作，只是诊断显示未知。发布打包要求独立的上游 Git checkout 与明确提交，嵌套在本仓库中的源码归档只供本地验证，不能作为发行来源证明。

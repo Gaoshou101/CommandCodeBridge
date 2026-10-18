@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -17,30 +18,38 @@ import (
 )
 
 type Service struct {
-	mu                                           sync.RWMutex
-	editMu                                       sync.Mutex
-	host                                         HostCall
-	cfg                                          Config
-	creds                                        map[string]Credential
-	files                                        map[string]string
-	revoked                                      map[string]bool
-	authDir                                      string
-	loaded, stopped, samplerStarted              bool
-	stopCh                                       chan struct{}
-	active                                       sync.WaitGroup
-	streams                                      map[string]bool
-	logs                                         []LogEntry
-	statistics                                   map[string]Counters
-	statisticsEpoch                              uint64
-	storageError                                 string
-	persistMu                                    sync.Mutex
-	persistDirty, persistRunning, persistWriting bool
-	persistStop, persistDone                     chan struct{}
-	usage                                        map[string]*usageCache
-	accounts                                     map[string]string
-	cooldown                                     map[string]time.Time
-	probes                                       map[string]bool
-	logins                                       map[string]*loginSession
+	mu                              sync.RWMutex
+	editMu                          sync.Mutex
+	host                            HostCall
+	cfg                             Config
+	creds                           map[string]Credential
+	files                           map[string]string
+	revoked                         map[string]bool
+	authDir                         string
+	loaded, stopped, samplerStarted bool
+	stopCh                          chan struct{}
+	active                          sync.WaitGroup
+	streams                         map[string]bool
+	logs                            []LogEntry
+	statistics                      map[string]Counters
+	statisticsEpoch                 uint64
+	storageError                    string
+	persistMu                       sync.Mutex
+	persistRunning, persistWriting  bool
+	persistDirty                    runtimeFiles
+	persistSince, lastPersistAt     time.Time
+	checkpointAt                    map[string]time.Time
+	persistErrors                   map[string]bool
+	persistWrites                   map[string]uint64
+	storageWarnings                 []runtimeRecovery
+	nextCompaction                  time.Time
+	persistStop, persistDone        chan struct{}
+	usage                           map[string]*usageCache
+	accounts                        map[string]string
+	cooldown                        map[string]time.Time
+	probes                          map[string]bool
+	logins                          map[string]*loginSession
+	expectedRegistration            map[string]time.Time
 }
 
 func NewService() *Service {
@@ -107,9 +116,11 @@ func (s *Service) configure(raw json.RawMessage) error {
 		_ = yaml.Unmarshal(r.ConfigYAML, &cpampPaths)
 	}
 	if b, e := os.ReadFile(filepath.Join(c.DataDir, "settings.json")); e == nil {
-		if json.Unmarshal(b, &c) != nil {
+		if bytes.Equal(bytes.TrimSpace(b), []byte("null")) || json.Unmarshal(b, &c) != nil {
 			return fail(500, "stored settings are invalid")
 		}
+	} else if !os.IsNotExist(e) {
+		return fail(500, "stored settings cannot be read")
 	}
 	// Explicit nonempty host configuration paths remain authoritative even
 	// when the console has already persisted model/request settings.
@@ -147,38 +158,21 @@ func (s *Service) configure(raw json.RawMessage) error {
 	}
 	s.cfg = c
 	if !s.loaded {
-		if b, e := os.ReadFile(filepath.Join(c.DataDir, "requests.json")); e == nil {
-			if json.Unmarshal(b, &s.logs) != nil {
-				return fail(500, "stored request logs are invalid")
-			}
-		}
-		if b, e := os.ReadFile(filepath.Join(c.DataDir, "statistics.json")); e == nil {
-			if json.Unmarshal(b, &s.statistics) != nil {
-				return fail(500, "stored statistics are invalid")
-			}
-		}
-		if b, e := os.ReadFile(filepath.Join(c.DataDir, "usage.json")); e == nil {
-			var saved map[string]persistedUsage
-			if json.Unmarshal(b, &saved) != nil {
-				return fail(500, "stored quota observations are invalid")
-			}
-			for cid, item := range saved {
-				s.usage[cid] = &usageCache{fingerprint: item.Fingerprint, value: item.Value}
-				if item.Account != "" {
-					s.accounts[cid] = item.Account
-				}
-			}
+		if err := s.loadRuntimeLocked(); err != nil {
+			return err
 		}
 		s.loaded = true
 	}
 	if len(s.logs) > c.LogRetention {
 		s.logs = s.logs[len(s.logs)-c.LogRetention:]
 	}
+	s.compactStatisticsLocked(time.Now().UTC())
 	s.startPersistenceLocked()
 	return nil
 }
 func registration() any {
 	fields := []map[string]string{
+		{"Name": "statistics_retention_days", "Type": "int", "Description": "Historical statistics expiry in days; 0 keeps daily totals indefinitely (0-3650)"},
 		{"Name": "data_dir", "Type": "string", "Description": "Persistent plugin data directory"},
 		{"Name": "public_base_url", "Type": "string", "Description": "Public CPA/CPAMP URL including any reverse proxy prefix; optional for same-origin panels"},
 		{"Name": "cpamp_install_dir", "Type": "string", "Description": "CPAMP native install directory; empty detects the running instance or ~/cpa-manager-plus"},
@@ -334,7 +328,7 @@ func (s *Service) parseAuth(raw json.RawMessage) (any, error) {
 	if cached := s.usage[c.ID]; cached != nil && cached.fingerprint != shaKey(c.APIKey+"|"+c.ProxyURL+"|"+s.cfg.BaseURL) {
 		delete(s.usage, c.ID)
 		delete(s.accounts, c.ID)
-		s.persistDirty = true
+		s.markDirtyLocked(dirtyUsage)
 	}
 	s.creds[c.ID] = c
 	s.files[c.ID] = filepath.Base(r.FileName)
@@ -417,12 +411,14 @@ func (s *Service) saveConfig(c Config) error {
 	}
 	s.mu.Lock()
 	s.cfg = c
+	s.nextCompaction = time.Time{}
+	s.compactStatisticsLocked(time.Now().UTC())
 	if c.BaseURL != old.BaseURL {
 		s.usage = map[string]*usageCache{}
 		s.accounts = map[string]string{}
 		s.cooldown = map[string]time.Time{}
 		s.probes = map[string]bool{}
-		s.persistDirty = true
+		s.markDirtyLocked(dirtyUsage)
 	}
 	creds := []Credential{}
 	for _, v := range s.creds {

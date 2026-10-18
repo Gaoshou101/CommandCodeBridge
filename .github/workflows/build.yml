@@ -29,7 +29,7 @@ jobs:
         run: python3 scripts/embed_cpamp_panel.py dist/cpamp-web/*_cpamp-web.zip
       - run: go test -race ./...
       - run: go vet ./...
-      - run: node --test tests/cpa-auth.test.cjs
+      - run: node --test tests/*.test.cjs
       - name: Native host integration (CPA v8.0.23)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,6 +45,8 @@ jobs:
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_e2e.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_native_management.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_reliability.py
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_diagnostics.py
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_round2.py
           gh release download v0.2.8 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.8_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
           cd /tmp/bridge-previous
           sha256sum --check --ignore-missing checksums.txt
@@ -128,6 +130,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows native management integration failed' }
           python tests/cpa_reliability.py
           if ($LASTEXITCODE -ne 0) { throw 'Windows reliability integration failed' }
+          python tests/cpa_diagnostics.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows diagnostics integration failed' }
+          python tests/cpa_round2.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows round two integration failed' }
           python tests/cpa_hot_reload.py
           if ($LASTEXITCODE -ne 0) { throw 'Windows live configuration integration failed' }
       - name: ARM64 native host integration
@@ -193,7 +199,7 @@ jobs:
           npm --workspace apps/web run type-check
           npm --workspace apps/web run test -- src/features/accounts/components/CommandCodeQuotaCard.test.tsx src/features/accounts/components/commandCodeQuotaStore.test.ts src/features/accounts/model/commandCodeQuotaWindows.test.ts src/features/accounts/model/accountHealthEvidence.test.ts src/features/accounts/model/accountQuotaWindowDefinitions.test.ts src/features/accounts/components/QuotaWindowCard.test.tsx src/services/api/CommandCodeOAuth.test.ts src/services/api/oauth.test.ts src/features/oauth/OAuthPage.test.tsx src/features/accounts/components/accountDetail/AccountQuotaTab.test.tsx
           npm --workspace apps/web run build
-          (cd apps/manager-server && go test ./internal/service/quotasnapshot -run TestCommandCode -count=1)
+          (cd apps/manager-server && go test ./internal/service/quotasnapshot ./internal/http/controller/health -run TestCommandCode -count=1)
           cd "$GITHUB_WORKSPACE"
           python scripts/package_cpamp.py "$cpamp_source"
           python - "$cpamp_source" <<'PY'
@@ -211,6 +217,55 @@ jobs:
           path: |
             dist/*_cpamp-web.zip
             dist/*_cpamp-web.zip.sha256
+
+  upstream-compatibility:
+    needs: cpamp-web
+    runs-on: ubuntu-24.04
+    # Report candidate compatibility without changing the pinned release gate.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: commandcodebridge-cpamp-web
+          path: dist/cpamp-web
+      - name: Test the latest CPA release as a candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/upstream-compatibility
+          candidate="$(gh release view --repo router-for-me/CLIProxyAPI --json tagName --jq .tagName)"
+          printf 'Pinned baseline: v8.0.23\nCandidate: %s\n' "$candidate" > dist/upstream-compatibility/result.txt
+          archive="CLIProxyAPI_${candidate#v}_linux_amd64.tar.gz"
+          gh release download "$candidate" --repo router-for-me/CLIProxyAPI --pattern "$archive" --pattern checksums.txt --dir dist/upstream-compatibility
+          (cd dist/upstream-compatibility && sha256sum --check --ignore-missing checksums.txt && tar -xzf "$archive")
+          python scripts/embed_cpamp_panel.py dist/cpamp-web/*_cpamp-web.zip
+          go build -trimpath -buildvcs=false -buildmode=c-shared -o dist/upstream-compatibility/commandcodebridge.so ./cmd/commandcodebridge
+          export CPA_BINARY="$PWD/dist/upstream-compatibility/cli-proxy-api"
+          export BRIDGE_LIBRARY="$PWD/dist/upstream-compatibility/commandcodebridge.so"
+          python tests/cpa_e2e.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
+          python tests/cpa_reliability.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
+          python tests/cpa_diagnostics.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
+      - name: Record candidate result
+        if: always()
+        shell: bash
+        run: |
+          echo '## CPA candidate compatibility' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f dist/upstream-compatibility/result.txt ]; then cat dist/upstream-compatibility/result.txt >> "$GITHUB_STEP_SUMMARY"; fi
+          echo 'The candidate result does not change the pinned supported baseline.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream-cpa-compatibility-report
+          path: dist/upstream-compatibility/result.txt
 
   release-checksums:
     needs: [build, cpamp-web]
@@ -230,3 +285,59 @@ jobs:
         with:
           name: commandcodebridge-checksums
           path: dist/checksums.txt
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, release-checksums]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: commandcodebridge-*
+          path: dist
+          merge-multiple: true
+      - name: Verify release provenance and prepare notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python scripts/checksums.py dist --include-cpamp
+          python - <<'PY'
+          import json, os, pathlib, re, zipfile
+          version = re.search(r'const Version = "([^"]+)"', pathlib.Path('internal/bridge/types.go').read_text()).group(1)
+          assert os.environ['RELEASE_TAG'] == 'v' + version, 'tag/source version mismatch'
+          for archive in pathlib.Path('dist').glob('*.zip'):
+              with zipfile.ZipFile(archive) as bundle:
+                  build = json.loads(bundle.read('BUILD.json'))
+              assert build['version'] == version, archive.name
+              source = build.get('integration_source_commit') if build.get('artifact') == 'cpamp-web' else build.get('source_commit')
+              assert source == os.environ['GITHUB_SHA'], f'{archive.name}: wrong source commit'
+          notes = pathlib.Path('docs/RELEASE_NOTES.md').read_text(encoding='utf-8')
+          assert notes.splitlines()[2] == '## v' + version, 'release notes version mismatch'
+          pathlib.Path('dist/release-notes.md').write_text(notes.split('\n## 已发布 ', 1)[0], encoding='utf-8')
+          PY
+      - name: Publish verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          state="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          if [ "$state" = false ]; then
+            echo 'Release is already published; refusing to replace assets.' >&2
+            exit 1
+          fi
+          if [ "$state" != true ]; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "CommandCodeBridge $RELEASE_TAG" --notes-file dist/release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" dist/*.zip dist/*.zip.sha256 dist/checksums.txt --clobber
+          test "$(gh release view "$RELEASE_TAG" --json assets --jq '.assets | length')" = 11
+          gh release edit "$RELEASE_TAG" --draft=false --latest --notes-file dist/release-notes.md

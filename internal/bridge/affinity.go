@@ -81,9 +81,11 @@ func (s *Service) affinityFile(c Credential) (affinityFile, error) {
 // upserts a generic filename-based ID and would resurrect an obsolete auth.
 // Both paths merge into the original file so plugin-unknown fields survive.
 func (s *Service) saveCredential(c Credential) error {
+	started := time.Now().UTC()
 	s.mu.RLock()
 	current, filename, dir := s.creds[c.ID], s.files[c.ID], s.authDir
 	s.mu.RUnlock()
+	changed := !bytes.Equal(jsonBytes(current), jsonBytes(c))
 	body := json.RawMessage(jsonBytes(c))
 	if current.RoutingID != "" || (dir != "" && filename != "") {
 		file, err := s.affinityFile(current)
@@ -126,14 +128,22 @@ func (s *Service) saveCredential(c Credential) error {
 	if old, ok := s.creds[c.ID]; ok && (old.APIKey != c.APIKey || old.ProxyURL != c.ProxyURL) {
 		delete(s.usage, c.ID)
 		delete(s.accounts, c.ID)
-		s.persistDirty = true
+		s.markDirtyLocked(dirtyUsage)
 	}
 	s.creds[c.ID] = c
+	if s.expectedRegistration == nil {
+		s.expectedRegistration = make(map[string]time.Time)
+	}
+	if changed {
+		s.expectedRegistration[c.ID] = started
+	}
 	s.mu.Unlock()
 	return nil
 }
 
 type runtimeAuth struct {
+	AuthIndex string    `json:"auth_index"`
+	Source    string    `json:"source"`
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	Provider  string    `json:"provider"`
@@ -358,7 +368,8 @@ func (s *Service) clearAffinity(r ManagementRequest) (any, error) {
 		return rollback(err)
 	}
 	return managementJSON(200, map[string]any{
-		"reset_count": len(next),
-		"message":     "旧会话绑定已清除。下一条请求将按当前优先级重新选择可用账号；正在生成的回复会继续完成。",
+		"reset_count":    len(next),
+		"host_confirmed": true,
+		"message":        "旧会话绑定已清除。下一条请求将按当前优先级重新选择可用账号；正在生成的回复会继续完成。",
 	})
 }

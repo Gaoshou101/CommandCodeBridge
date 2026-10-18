@@ -1,0 +1,21 @@
+package health
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestCommandCodeReadOnlyHealthCapability(t *testing.T) {
+	handler := &Handler{ServiceID: "fixture-manager"}
+	response := httptest.NewRecorder()
+	handler.Health(response, httptest.NewRequest(http.MethodGet, "/health", nil))
+	var body struct { Capabilities map[string]bool `json:"capabilities"` }
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &body) != nil || !body.Capabilities["commandcode_quota_snapshots_v1"] {
+		t.Fatalf("health capability not served: %d %s", response.Code, response.Body.String())
+	}
+	response = httptest.NewRecorder()
+	handler.Health(response, httptest.NewRequest(http.MethodPost, "/health", nil))
+	if response.Code != http.StatusMethodNotAllowed { t.Fatal("capability check must remain GET-only") }
+}

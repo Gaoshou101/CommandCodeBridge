@@ -19,6 +19,7 @@ lines = []
 panel_source = None
 native_panels = set()
 panel_digest = None
+compatibilities = set()
 for archive in archives:
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     expected, name = archive.with_suffix(".zip.sha256").read_text(encoding="utf-8").split()
@@ -26,6 +27,10 @@ for archive in archives:
         parser.error(f"checksum mismatch: {archive.name}")
     with zipfile.ZipFile(archive) as bundle:
         build = json.loads(bundle.read("BUILD.json"))
+        compatibility = build.get("compatibility")
+        if not isinstance(compatibility, dict) or compatibility.get("schema") != 1 or not compatibility.get("cpa_baseline") or not compatibility.get("cpamp_source_commit"):
+            parser.error("package compatibility baseline missing")
+        compatibilities.add(json.dumps(compatibility, sort_keys=True))
         if build.get("artifact") == "cpamp-web":
             if not args.include_cpamp or panel_source is not None:
                 parser.error("unexpected or duplicate CPAMP frontend")
@@ -70,6 +75,8 @@ if args.include_cpamp and panel_source not in sources:
     parser.error("CPAMP frontend must share the native packages' version and integration source commit")
 if len(native_panels) != 1 or (args.include_cpamp and panel_digest not in native_panels):
     parser.error('all native plugins must embed the exact released CPAMP panel')
+if len(compatibilities) != 1:
+    parser.error('all packages must share one compatibility baseline')
 output = args.directory / "checksums.txt"
 output.write_text("".join(lines), encoding="utf-8")
 print(f"Verified four platform packages" + (" and CPAMP frontend" if args.include_cpamp else "") + f"; wrote {output}")

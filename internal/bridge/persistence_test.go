@@ -64,7 +64,7 @@ func TestBatchedPersistenceRetriesWriteFailure(t *testing.T) {
 	s.mu.RLock()
 	dirty, reported := s.persistDirty, s.storageError
 	s.mu.RUnlock()
-	if !dirty || reported == "" {
+	if dirty == 0 || reported == "" {
 		t.Fatal("write failure was not retained for retry")
 	}
 	if err := os.Remove(path); err != nil {
@@ -73,7 +73,7 @@ func TestBatchedPersistenceRetriesWriteFailure(t *testing.T) {
 	s.flushStatistics()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.persistDirty || s.storageError != "" {
+	if s.persistDirty != 0 || s.storageError != "" {
 		t.Fatal("successful retry did not clear persistence error")
 	}
 }
