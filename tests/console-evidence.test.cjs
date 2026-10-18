@@ -30,7 +30,7 @@ test('evidence escapes protocol and distinguishes source, expiry and generic den
  const c=fixture();c.state.modelEvidence={items:[{model:'alias',status:'permission_unknown',evidence:[
   {source:'plugin_test',status:'expired',client_protocol:'<img>',upstream_protocol:'messages'},
   {source:'cpa_request',status:'unknown'}]}]};
- const html=c.modelEvidenceHTML('alias');
+ const html=c.modelEvidenceDetailHTML('alias');
  for(const text of ['权限拒绝，原因未知','证据已过期','插件直测','CPA 请求'])assert.ok(html.includes(text));
  assert.ok(!html.includes('<img>'));
 });

@@ -62,3 +62,12 @@ test('rejected management access immediately clears rendered diagnostics', async
   assert.equal(context.$('diagnosticResults').textContent, '登录后重新诊断');
   assert.equal(context.$('compatibilityResults').textContent, '登录后重新检查');
 });
+
+test('summary counts keep pending separate from errors and logout clears drawer and request data', () => {
+  const c=fixture();
+  const counts=c.diagnosticCounts({credentials:[{status:'confirmed'},{status:'disabled'},{status:'missing'},{status:'pending'},{status:'unknown'}],unmatched_registrations:2});
+  assert.equal(counts.errors,3);assert.equal(counts.pending,2);
+  c.state.logs=[{id:'private'}];c.state.catalog=[{name:'private'}];c.$('detailContent').innerHTML='private detail';c.$('testResult').textContent='private response';
+  c.resetDiagnosticViews();
+  assert.equal(c.state.logs.length,0);assert.equal(c.state.catalog.length,0);assert.equal(c.$('detailContent').innerHTML,'');assert.equal(c.$('testResult').textContent,'');
+});

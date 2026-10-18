@@ -1,0 +1,738 @@
+{
+  "date": "2026-10-18",
+  "fixture": "tests/console_preview.py --scenario normal; isolated Windows CPA 8.0.23; loopback upstream only",
+  "comparison": "Same synthetic scenario; timestamps and generated request IDs differ.",
+  "after_source_sha256": {
+    "commandcode-icon.svg": "d709a0b2d531eff9f678813f9beff46c9adb1b229b29fbe8521fa5b4db0ff18f",
+    "console.css": "94dfe3c2323404d38dfcac5fca5812df53952729c7cf00063c495fe8dee0fad9",
+    "console.js": "011003ace04cb2f5a431434231d3ebd37e57e8e937258200843d4fbfed51064f",
+    "cpa-auth.js": "6cccd7fa6099fcadb2997e573303d77b947231eb57aaf4076771d939254fe238",
+    "index.html": "2519e84dd38f58b1a98b3cac436e3e5efa555d5ef203316d26d8a4d0261f2357",
+    "login.html": "db0d6246b00069096cf6f840cea44a7a68e7bb1fee41dbc9e67c0fa3fd8fb8e2"
+  },
+  "after_library_sha256": "1eb2c04dd5088090052b8bd0a692eb5a31e6c9e0fc8bb40fb6bdaf8cf9825096",
+  "layout": [
+    {
+      "theme": "light",
+      "view": "overview",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "light",
+      "view": "credentials",
+      "client": 1280,
+      "height": 900,
+      "scroll": 1280,
+      "width": 1280
+    },
+    {
+      "theme": "light",
+      "view": "models",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "light",
+      "view": "logs",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "light",
+      "view": "settings",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "dark",
+      "view": "overview",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "dark",
+      "view": "credentials",
+      "client": 1280,
+      "height": 900,
+      "scroll": 1280,
+      "width": 1280
+    },
+    {
+      "theme": "dark",
+      "view": "models",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "dark",
+      "view": "logs",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "dark",
+      "view": "settings",
+      "client": 1265,
+      "height": 900,
+      "scroll": 1265,
+      "width": 1280
+    },
+    {
+      "theme": "light",
+      "view": "overview",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "light",
+      "view": "credentials",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "light",
+      "view": "models",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "light",
+      "view": "logs",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "light",
+      "view": "settings",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "dark",
+      "view": "overview",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "dark",
+      "view": "credentials",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "dark",
+      "view": "models",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "dark",
+      "view": "logs",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "theme": "dark",
+      "view": "settings",
+      "client": 375,
+      "height": 844,
+      "scroll": 375,
+      "width": 390
+    }
+  ],
+  "images": [
+    {
+      "path": "dist/round3/before/1280-dark-credentials.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "credentials",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "5210c04328fcce7aea9f498b1573249d7c44e30a152fbfa490de70fd71055867",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-dark-logs.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "logs",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "0f1ff14e690a56fd7101760b122c4eb8b3308f10188ce08adb5518ed48271398",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-dark-models.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "models",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "254c5f52c188819b97c87d263762e604383e0b37ccb6023902e9a0d4b8c40cc6",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-dark-overview.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "overview",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "cddd05702c3b66fc73340395baa28aa7dcfd65eff56a442d46261f178b8838b8",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-dark-settings.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "settings",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "9bf627fd7485f0c196d7a4c5c09f49a65041dd59b1e1978adde607cccd4ec61d",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-light-credentials.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "credentials",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "f63b1ebce9442a8dad575072c74d1646b79e2bca939c84ae337741c50fe5ddd6",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-light-logs.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "logs",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "048745c461d6a5f33ad9d14f7d7a969fb49a6c6a2533728eb38902a052474998",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-light-models.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "models",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "ce1a06313c0225de7ef0c59649068b6fae4a8cbfb92c341211cef31466be1147",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-light-overview.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "overview",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "9274dde174e016b6e6ab142ad651f5b6e01473d0deb1c85a90baf7c2d29b54e6",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/1280-light-settings.jpg",
+      "phase": "before",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "settings",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "da7f63d9ebe032aaf0bb0bb41c257813efddd492d71f4ea3e3202cd5df8e9c24",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-dark-credentials.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "credentials",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "91af58363f03c036c6964b313f6d4c382ffb535de22b3510da78e696c702c6f4",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-dark-logs.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "logs",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "fca32c373e2ee846ae99db22bc9dd7c2b4e901c262dbcf300b8eef3fe3d591e6",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-dark-models.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "models",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "aca5c1ac93ecbd7d64c2aec2ebb71ff878a42ac9352dfcc3de6a8b3d0dd7d997",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-dark-overview.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "overview",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "f8667545ab60a4a60437fd790f063ef1b28da610815bfc065e7f6fc42f35d308",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-dark-settings.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "settings",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "6eff902faa8b3a008aa33189042357ef202178d80cbdef54a2d92600383a68ad",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-light-credentials.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "credentials",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "7d91f15bd527c577cb437b9810e2f810717edd61fa8e51397f2fb41941a812da",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-light-logs.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "logs",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "d532f36e64fa0d3c1944beed868e8a98bde0e79552b66fcde59c7ae465a4eda3",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-light-models.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "models",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "f6a4d310b41b3e9c0ba8efb93b52de84e7a5b5ad4d29f6a5556f98d8fcb25b93",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-light-overview.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "overview",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "5cbf1f0b27f4ce73f2b2e3dd8df774ad510f192d5754aa868f40f6ed8d4a57e6",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/before/390-light-settings.jpg",
+      "phase": "before",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "settings",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "ad0749d19bb1899167fc68d7d78c46085bde0ce0672313147cdaa1226ca05627",
+      "base_commit": "c03c314"
+    },
+    {
+      "path": "dist/round3/after/1280-dark-credentials.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "credentials",
+      "pixels": [
+        1280,
+        900
+      ],
+      "format": "JPEG",
+      "sha256": "bcc88927bce72fc649c660c705f5349e048210e8938cc677aae0765e43de06c4",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-dark-logs.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "logs",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "29044db9e934f51663bfcbf14a2acb61f9c98ea6d42cd9b9d508bfeb01ce9672",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-dark-models.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "models",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "099872b78320dc40a43cefc90cc4ab9db283c147397ce69bf6b3b6844686bf2d",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-dark-overview.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "overview",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "8323b026d250f0f9126adb1036d377e95d4735083758cb6e407db9e29947be8a",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-dark-settings.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "dark",
+      "view": "settings",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "2c225ebef77d9ae1453f6db1966755739c4f9cd94394193c93a7dfccc162b89a",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-light-credentials.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "credentials",
+      "pixels": [
+        1280,
+        900
+      ],
+      "format": "JPEG",
+      "sha256": "ce07dff3c1ddee2725a255e62f4698a39ab6080b14fa1c91814b19e4e1fd5b4c",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-light-logs.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "logs",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "14505d05c89b544ae1a3e983f5e8c8f575fa91ebfb0a56bac640d159c0a77173",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-light-models.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "models",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "97b6ac299ffc2e673e847847f1a6bf35923a7b8c7dfbf953b4c7ea7524dbe819",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-light-overview.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "overview",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "2721a674efe2b7d0c8a9d00f78e9591bb332060fc78f6a3bea3c125f25a5f0ca",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/1280-light-settings.jpg",
+      "phase": "after",
+      "viewport": "1280x900",
+      "theme": "light",
+      "view": "settings",
+      "pixels": [
+        1265,
+        889
+      ],
+      "format": "JPEG",
+      "sha256": "d9e85fcbf040ec649572cfb7efdee59efa842dff81749b74a3da7838d3eb8d37",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-dark-credentials.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "credentials",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "c026082603ce91c6e4f13c387921ddcca39f57e1aac7590f088b51609be7af8a",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-dark-logs.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "logs",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "d0ef0429adfca505122aa6215bbff9bdd058bd7dbf41a692ce52dc61e5c14ec6",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-dark-models.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "models",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "a770b08c91d45af651d7b8c6e7288eeccdfbb1e1a5ae03a2653da9ac1631fc96",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-dark-overview.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "overview",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "88366a5765d33c7f21e5a57f516a70e0757c09b59a41b45ceff880b703b3f91c",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-dark-settings.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "dark",
+      "view": "settings",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "551d80dd8e31413e13d762fc4b29b881936d5f89ed8c2bf86673c54fb445d0ca",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-light-credentials.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "credentials",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "9cc2237acc4cc247eaff223e2168d8285b32eaf686007c3607cd8f471d825418",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-light-logs.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "logs",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "27524bd0160e2de71ef377b756ea38b7dbda3c78723c5b58d0c83404706bb8b5",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-light-models.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "models",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "e0d4e0a18fc3a2f6cc08ec8bc19e02c882590930cf8d256aa0c59c0819e1328d",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-light-overview.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "overview",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "ae33e786498e8fa2e63b90375ebd4799c3c0e056ced49d9d533a3697c3cfbe61",
+      "base_commit": "f7785de + after_source_sha256"
+    },
+    {
+      "path": "dist/round3/after/390-light-settings.jpg",
+      "phase": "after",
+      "viewport": "390x844",
+      "theme": "light",
+      "view": "settings",
+      "pixels": [
+        375,
+        812
+      ],
+      "format": "JPEG",
+      "sha256": "eb9e461f4f8844fe5257c5f050f16191f74023c0e34777cdc99245e9dde059a5",
+      "base_commit": "f7785de + after_source_sha256"
+    }
+  ]
+}

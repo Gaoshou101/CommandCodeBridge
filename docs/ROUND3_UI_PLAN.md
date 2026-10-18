@@ -1,6 +1,6 @@
 # 第三轮：CommandCode Studio 风格与页面优化计划
 
-日期：2026-10-18。状态：**计划完成，待实施**。第一、二轮实现已先提交 [PR #12](https://github.com/Gaoshou101/CommandCodeBridge/pull/12)，实现基线为 `c03c314`；本计划随后以独立文档提交附到该 PR。
+日期：2026-10-18。状态：**五页与通用窗口本地实现完成**。第一、二轮实现已先提交 [PR #12](https://github.com/Gaoshou101/CommandCodeBridge/pull/12)，实现基线为 `c03c314`；本计划随后以独立文档提交附到该 PR。第三轮交付、参照差异、20 组截图与待补验收见 [ROUND3_UI_REVIEW.md](ROUND3_UI_REVIEW.md)。下文保留实施前约定；真实浏览器 200% zoom、当前登录后官网参照仍待补证据，不作为已通过项。
 
 ## 1. 目标与范围
 
