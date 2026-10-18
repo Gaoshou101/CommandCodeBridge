@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.9"
+const Version = "0.2.10"
 const PluginID = "commandcodebridge"
 const Provider = "commandcode"
 
@@ -37,6 +37,7 @@ func fail(status int, message string) error {
 
 type HostCall func(string, any, any) error
 type ExecutorRequest struct {
+	pluginTest                                             bool
 	AuthID, AuthProvider, Model, Format, SourceFormat, Alt string
 	Stream                                                 bool
 	Headers                                                http.Header
@@ -93,18 +94,19 @@ type Model struct {
 	Reasoning     ReasoningMapping `json:"reasoning_mapping" yaml:"reasoning_mapping"`
 }
 type Config struct {
-	DataDir             string  `json:"data_dir" yaml:"data_dir"`
-	BaseURL             string  `json:"base_url" yaml:"base_url"`
-	PublicBaseURL       string  `json:"public_base_url,omitempty" yaml:"public_base_url"`
-	CPAMPInstallDir     string  `json:"cpamp_install_dir" yaml:"cpamp_install_dir"`
-	CPAMPConfigPath     string  `json:"cpamp_config_path" yaml:"cpamp_config_path"`
-	CPAMPPanelPath      string  `json:"cpamp_panel_path" yaml:"cpamp_panel_path"`
-	Models              []Model `json:"models" yaml:"models"`
-	TimeoutSeconds      int     `json:"timeout_seconds" yaml:"timeout_seconds"`
-	LogRetention        int     `json:"log_retention" yaml:"log_retention"`
-	MaxResponseBytes    int     `json:"max_response_bytes" yaml:"max_response_bytes"`
-	UsageRefreshSeconds int     `json:"usage_refresh_seconds" yaml:"usage_refresh_seconds"`
-	ZDR                 bool    `json:"zdr" yaml:"zdr"`
+	DataDir                 string  `json:"data_dir" yaml:"data_dir"`
+	BaseURL                 string  `json:"base_url" yaml:"base_url"`
+	PublicBaseURL           string  `json:"public_base_url,omitempty" yaml:"public_base_url"`
+	CPAMPInstallDir         string  `json:"cpamp_install_dir" yaml:"cpamp_install_dir"`
+	CPAMPConfigPath         string  `json:"cpamp_config_path" yaml:"cpamp_config_path"`
+	CPAMPPanelPath          string  `json:"cpamp_panel_path" yaml:"cpamp_panel_path"`
+	Models                  []Model `json:"models" yaml:"models"`
+	TimeoutSeconds          int     `json:"timeout_seconds" yaml:"timeout_seconds"`
+	LogRetention            int     `json:"log_retention" yaml:"log_retention"`
+	MaxResponseBytes        int     `json:"max_response_bytes" yaml:"max_response_bytes"`
+	UsageRefreshSeconds     int     `json:"usage_refresh_seconds" yaml:"usage_refresh_seconds"`
+	StatisticsRetentionDays int     `json:"statistics_retention_days" yaml:"statistics_retention_days"`
+	ZDR                     bool    `json:"zdr" yaml:"zdr"`
 }
 
 func defaultConfig() Config {
@@ -114,6 +116,9 @@ func defaultConfig() Config {
 var efforts = map[string]bool{"unset": true, "none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true, "ultra": true}
 
 func (c *Config) validate() error {
+	if c.StatisticsRetentionDays < 0 || c.StatisticsRetentionDays > 3650 {
+		return fail(400, "statistics_retention_days must be 0 to 3650")
+	}
 	for _, path := range []string{c.CPAMPInstallDir, c.CPAMPConfigPath, c.CPAMPPanelPath} {
 		if strings.ContainsAny(path, "\x00\r\n") || len(path) > 4096 {
 			return fail(400, "invalid CPAMP path")

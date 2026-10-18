@@ -110,6 +110,16 @@ const makeRequest = ("""),
     ],
     root / 'apps/manager-server/internal/service/quotasnapshot/service.go': [
         ('validProviders      = stringSet("codex", "claude", "antigravity", "kimi", "xai", "devin", "meta")', 'validProviders      = stringSet("codex", "claude", "antigravity", "kimi", "xai", "devin", "meta", "commandcode")'),
+        ('func New(st *store.Store) *Service {', '''// SupportsCommandCode reports the actual allowlist without reading or writing snapshots.
+func SupportsCommandCode() bool {
+    return validProviders["commandcode"]
+}
+
+func New(st *store.Store) *Service {'''),
+    ],
+    root / 'apps/manager-server/internal/http/controller/health/handler.go': [
+        ('"net/http"', '"net/http"\n\n    quotasnapshotsvc "github.com/seakee/cpa-manager-plus/apps/manager-server/internal/service/quotasnapshot"'),
+        ('map[string]any{"ok": true, "service": h.ServiceID}', 'map[string]any{"ok": true, "service": h.ServiceID, "capabilities": map[string]bool{"commandcode_quota_snapshots_v1": quotasnapshotsvc.SupportsCommandCode()}}'),
     ],
     oauth: [
         ("import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';", "import { apiClient, createScopedApiRequestConfig, type ApiClientRequestScope } from './client';\nimport { normalizeApiBase } from '@/utils/connection';"),
@@ -176,12 +186,16 @@ translations = {
     'en': (f'CommandCodeBridge v{version}: Studio sends credentials in a POST body. Run commandcodebridge-login on your browser computer, paste this card’s official authorization link into it, then copy the receiver’s result and submit it below. A bare localhost URL has no credentials.', 'Paste the result copied from the local receiver', 'Authentication result'),
 }
 receiver_labels = {'zh-CN': '打开本地接收器', 'zh-TW': '開啟本地接收器', 'en': 'Open local receiver'}
+page_index = root / 'apps/web/index.html'
+changes[page_index] = [('</head>', '<meta name="commandcodebridge-capabilities" content="quota recent-requests quota-windows">\n</head>')]
 for locale, (hint, placeholder, label) in translations.items():
     changes[root / f'apps/web/src/i18n/locales/{locale}.json'] = [
         ('"plugin_oauth_hint":', '"commandcode_oauth_hint": ' + json.dumps(hint, ensure_ascii=False) + ',\n    "commandcode_callback_placeholder": ' + json.dumps(placeholder, ensure_ascii=False) + ',\n    "commandcode_callback_label": ' + json.dumps(label, ensure_ascii=False) + ',\n    "commandcode_open_receiver": ' + json.dumps(receiver_labels[locale], ensure_ascii=False) + ',\n    "plugin_oauth_hint":'),
     ]
 prepared = {}
 for path, replacements in changes.items():
+    if not path.is_file():
+        raise SystemExit(f'Unsupported CPAMP source: required file missing: {path.relative_to(root)}. Verified baseline: dbf61ddf438f399558722df3467355c42af9005d. No prepared files have been written.')
     text = path.read_text(encoding='utf-8').replace('\r\n', '\n')
     if path.parent.name == 'locales':
         text = re.sub(r'^    "commandcode_(?:oauth_hint|callback_placeholder|callback_label|open_receiver)":.*\n', '', text, flags=re.MULTILINE)
@@ -201,7 +215,7 @@ for path, replacements in changes.items():
         if new in text:
             continue
         if text.count(old) != 1:
-            raise SystemExit(f'Unsupported CPAMP source: insertion anchor missing or ambiguous in {path.name}')
+            raise SystemExit(f'Unsupported CPAMP source: insertion anchor missing or ambiguous in {path.relative_to(root)}. Verified baseline: dbf61ddf438f399558722df3467355c42af9005d. Run --check against matching source before upgrading; no prepared files have been written.')
         text = text.replace(old, new, 1)
     prepared[path] = text
 if not args.check:
@@ -213,6 +227,7 @@ if not args.check:
     for name in ['commandCodeQuotaWindows.ts', 'commandCodeQuotaWindows.test.ts']:
         shutil.copy2(source / name, model / name)
     shutil.copy2(source / 'commandcode_quota_test.go.fragment', root / 'apps/manager-server/internal/service/quotasnapshot/commandcode_quota_test.go')
+    shutil.copy2(source / 'commandcode_health_test.go.fragment', root / 'apps/manager-server/internal/http/controller/health/commandcode_health_test.go')
     shutil.copy2(source / 'CommandCodeOAuth.test.ts', root / 'apps/web/src/services/api/CommandCodeOAuth.test.ts')
     shutil.copy2(source / 'commandCodeOAuth.ts', root / 'apps/web/src/services/api/commandCodeOAuth.ts')
 print('PASS: CPAMP native credential grid and quota detail integration' + (' compatibility check' if args.check else ' applied'))

@@ -21,3 +21,11 @@
 /* Keep secondary data readable without restoring explanatory copy. */
 .summary small,.health-legend,.health-row .small,.health-meta,.account-foot,.quota-note,.log-main .small,.detail-grid dt{font-size:11px}
 .health-name{font-size:13px}.log-main{font-size:12px}.badge{font-size:11px}
+.diagnostic-row{padding:14px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.diagnostic-row:last-child{border-bottom:0}.diagnostic-row p{margin:6px 0}.diagnostic-row .badge{display:inline-block;margin:4px 0}.diagnostic-head{flex-wrap:wrap;gap:12px}
+
+#storageStatus{white-space:pre-line;overflow-wrap:anywhere}
+#modelRows td .small{max-width:32em;overflow-wrap:anywhere}
+
+#modelRows{overflow-x:auto}#modelRows table{min-width:900px;table-layout:auto}#modelRows th:first-child,#modelRows td:first-child{min-width:170px}#modelRows th:nth-child(4),#modelRows td:nth-child(4){min-width:270px}
+
+.model-scroll-hint{display:none}@media(max-width:767px){.model-scroll-hint{display:block}}

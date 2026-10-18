@@ -19,7 +19,7 @@ const apiBase = "/v0/management/commandcodebridge"
 
 func (s *Service) registerManagement() any {
 	routes := []map[string]string{}
-	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "credentials", "credentials/usage", "logs", "statistics", "cpamp/panel"}, "POST": {"credentials", "auth/complete", "auth/callback", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset", "cpamp/panel/install"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
+	for method, paths := range map[string][]string{"GET": {"status", "config", "models", "models/evidence", "credentials", "credentials/usage", "logs", "statistics", "cpamp/panel", "diagnostics", "diagnostics/summary", "compatibility"}, "POST": {"credentials", "auth/complete", "auth/callback", "models/refresh", "models/test", "credentials/clear-affinity", "statistics/reset", "cpamp/panel/install"}, "PUT": {"credentials", "models", "models/reasoning", "config"}, "DELETE": {"credentials"}} {
 		for _, p := range paths {
 			routes = append(routes, map[string]string{"Method": method, "Path": apiBase + "/" + p})
 		}
@@ -73,9 +73,16 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 	var value any
 	var e error
 	switch r.Method + " " + path {
+	case "GET /diagnostics":
+		value = s.diagnostics(false)
+	case "GET /diagnostics/summary":
+		compatibility := s.compatibility()
+		value = map[string]any{"registration": s.diagnostics(true), "compatibility": compatibility.Checks, "baseline": compatibility.Baseline}
+	case "GET /compatibility":
+		value = s.compatibility()
 	case "GET /status":
 		s.mu.RLock()
-		value = map[string]any{"version": Version, "models": len(s.cfg.Models), "credentials": len(s.creds), "storage_error": s.storageError, "storage_pending": s.persistDirty || s.persistWriting}
+		value = map[string]any{"version": Version, "models": len(s.cfg.Models), "credentials": len(s.creds), "storage_error": s.storageError, "storage_pending": s.persistDirty != 0 || s.persistWriting, "storage": s.storageStatusLocked()}
 		s.mu.RUnlock()
 	case "GET /config":
 		value = s.config()
@@ -85,6 +92,8 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 		s.editMu.Lock()
 		value, e = installNativePanel(s.config())
 		s.editMu.Unlock()
+	case "GET /models/evidence":
+		value = s.modelEvidence(r.Query.Get("credential_id"))
 	case "GET /models":
 		value = map[string]any{"models": s.config().Models}
 	case "GET /credentials":
@@ -177,7 +186,7 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 			e = fail(400, "invalid settings JSON")
 		} else {
 			for k := range in {
-				if k != "timeout_seconds" && k != "log_retention" && k != "max_response_bytes" && k != "usage_refresh_seconds" && k != "zdr" && k != "cpamp_install_dir" && k != "cpamp_config_path" && k != "cpamp_panel_path" {
+				if k != "timeout_seconds" && k != "log_retention" && k != "max_response_bytes" && k != "usage_refresh_seconds" && k != "statistics_retention_days" && k != "zdr" && k != "cpamp_install_dir" && k != "cpamp_config_path" && k != "cpamp_panel_path" {
 					e = fail(400, "unsupported editable setting")
 					break
 				}
@@ -196,21 +205,7 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 	case "POST /credentials/clear-affinity":
 		return s.clearAffinity(r)
 	case "POST /statistics/reset":
-		s.persistMu.Lock()
-		s.mu.Lock()
-		old := s.statistics
-		next := map[string]Counters{}
-		e = atomicJSON(filepath.Join(s.cfg.DataDir, "statistics-backup-"+id()+".json"), old)
-		if e == nil {
-			e = atomicJSON(filepath.Join(s.cfg.DataDir, "statistics.json"), next)
-		}
-		if e == nil {
-			s.statistics = next
-			s.statisticsEpoch++
-			s.persistDirty = true
-		}
-		s.mu.Unlock()
-		s.persistMu.Unlock()
+		e = s.resetStatistics()
 		value = map[string]bool{"reset": e == nil}
 	default:
 		return managementJSON(404, map[string]string{"error": "not found"})
@@ -274,7 +269,7 @@ func (s *Service) editCredential(r ManagementRequest) (any, error) {
 	if e := s.saveCredential(c); e != nil {
 		return nil, e
 	}
-	return map[string]any{"id": c.ID, "label": c.Label, "disabled": c.Disabled, "priority": c.Priority}, nil
+	return map[string]any{"id": c.ID, "label": c.Label, "disabled": c.Disabled, "priority": c.Priority, "saved": true, "registration": s.credentialSaveDiagnostic(c.ID)}, nil
 }
 func (s *Service) deleteCredential(cid string) (any, error) {
 	s.editMu.Lock()
@@ -320,7 +315,7 @@ func (s *Service) deleteCredential(cid string) (any, error) {
 	delete(s.usage, cid)
 	delete(s.accounts, cid)
 	s.revoked[cid] = true
-	s.persistDirty = true
+	s.markDirtyLocked(dirtyUsage)
 	s.mu.Unlock()
 	return map[string]bool{"deleted": true}, nil
 }
@@ -401,7 +396,7 @@ func (s *Service) testModel(r ManagementRequest) (any, error) {
 		}
 		payload["reasoning_effort"] = in.Reasoning
 	}
-	response, e := s.execute(ExecutorRequest{Model: in.Model, StorageJSON: jsonBytes(c), HostCallbackID: r.HostCallbackID, Payload: jsonBytes(payload)}, false)
+	response, e := s.execute(ExecutorRequest{Model: in.Model, StorageJSON: jsonBytes(c), HostCallbackID: r.HostCallbackID, Payload: jsonBytes(payload), pluginTest: true}, false)
 	if e != nil {
 		return nil, e
 	}

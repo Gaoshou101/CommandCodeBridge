@@ -51,14 +51,18 @@ type nativePanelStatus struct {
 	Installable       bool             `json:"installable"`
 	HotUpdateReady    bool             `json:"hot_update_ready"`
 	ServedPage        panelObservation `json:"served_page"`
+	PlannedChanges    []string         `json:"planned_changes"`
 }
 
 type panelObservation struct {
-	Checked     bool   `json:"checked"`
-	HTTPStatus  int    `json:"http_status,omitempty"`
-	SHA256      string `json:"sha256,omitempty"`
-	NativeQuota bool   `json:"native_quota"`
-	Matches     bool   `json:"matches"`
+	Version        string `json:"version,omitempty"`
+	RecentRequests bool   `json:"recent_requests"`
+	NativeWindows  bool   `json:"native_windows"`
+	Checked        bool   `json:"checked"`
+	HTTPStatus     int    `json:"http_status,omitempty"`
+	SHA256         string `json:"sha256,omitempty"`
+	NativeQuota    bool   `json:"native_quota"`
+	Matches        bool   `json:"matches"`
 }
 
 func expandedPath(path string) (string, error) {
@@ -375,6 +379,7 @@ func panelStatus(c Config, targets []*nativePanelTarget, content []byte) nativeP
 		}
 	}
 	status.Installable = len(content) > 0
+	status.PlannedChanges = []string{"更新面板文件：" + status.PanelPath, "已存在且有变化的文件会先保存为同目录 .commandcodebridge-backup-* 私有副本"}
 	installedHash := ""
 	if data, e := os.ReadFile(status.PanelPath); e == nil {
 		status.Installed = bytes.Equal(data, content) && len(content) > 0
@@ -406,6 +411,9 @@ func panelStatus(c Config, targets []*nativePanelTarget, content []byte) nativeP
 		} else if !status.ConfigExists {
 			status.Message = "已找到通过环境变量运行的 CPAMP，config.json 不存在属正常情况；安装会创建最小面板配置，首次生效需重启 Manager Server"
 		}
+	}
+	if status.RestartRequired {
+		status.PlannedChanges = append(status.PlannedChanges, "首次启用或切换页面路径后需重启 Manager Server")
 	}
 	return status
 }
@@ -446,6 +454,7 @@ func observePanel(target *nativePanelTarget, content []byte) panelObservation {
 	observation.Checked = true
 	observation.SHA256 = hex.EncodeToString(sum[:])
 	observation.NativeQuota = bytes.Contains(actual, []byte("data-commandcode-native-quota"))
+	annotatePanel(&observation, actual)
 	observation.Matches = len(content) > 0 && bytes.Equal(actual, content)
 	return observation
 }

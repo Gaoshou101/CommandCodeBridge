@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"math"
+	"math/rand/v2"
 	"net/url"
 	"sync"
 	"time"
@@ -162,7 +163,7 @@ func (s *Service) credentialUsage(cid, callback string, refresh bool) (Usage, er
 		s.mu.Lock()
 		if s.usage[cid] == cached && shaKey(s.creds[cid].APIKey+"|"+s.creds[cid].ProxyURL+"|"+s.cfg.BaseURL) == fingerprint && !s.creds[cid].Disabled {
 			cached.value = value
-			s.persistDirty = true
+			s.markDirtyLocked(dirtyUsage)
 			if account != "" {
 				s.accounts[cid] = account
 			}
@@ -298,7 +299,7 @@ func (s *Service) startSampler() {
 	s.mu.Unlock()
 	go func() {
 		defer s.active.Done()
-		timer := time.NewTimer(2 * time.Second)
+		timer := time.NewTimer(samplerDelay(2 * time.Second))
 		defer timer.Stop()
 		for {
 			select {
@@ -331,7 +332,13 @@ func (s *Service) startSampler() {
 				}(cid)
 			}
 			group.Wait()
-			timer.Reset(time.Duration(interval) * time.Second)
+			timer.Reset(samplerDelay(time.Duration(interval) * time.Second))
 		}
 	}()
+}
+
+// Positive jitter spreads restarts and periodic polls without increasing the
+// configured query rate. Credential isolation and the concurrency cap remain.
+func samplerDelay(interval time.Duration) time.Duration {
+	return interval + time.Duration(rand.Int64N(int64(interval/5)+1))
 }

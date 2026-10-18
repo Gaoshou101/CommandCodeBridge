@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+func TestCommandCodeCapabilityMatchesAllowlist(t *testing.T) {
+	if !SupportsCommandCode() { t.Fatal("CommandCode snapshot capability must match allowlist") }
+	delete(validProviders, "commandcode")
+	t.Cleanup(func() { validProviders["commandcode"] = true })
+	if SupportsCommandCode() { t.Fatal("capability must not claim unsupported snapshots") }
+	validProviders["commandcode"] = false
+	if SupportsCommandCode() { t.Fatal("capability must respect disabled allowlist entries") }
+}
+
 func TestCommandCodeQuotaPersistenceAndCredentialIsolation(t *testing.T) {
 	now := time.Date(2026, 10, 12, 14, 0, 0, 0, time.UTC).UnixMilli()
 	service := newQuotaSnapshotTestService(t, now)

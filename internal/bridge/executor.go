@@ -268,7 +268,10 @@ func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 	r.Stream = stream
 	start := time.Now()
 	body, c, m, e := s.prepare(r)
+	executionConfig := s.config()
 	entry := s.newLog(r, c, m, start)
+	entry.CredentialScope = credentialEvidenceScope(c, executionConfig)
+	entry.ZDRRequested = executionConfig.ZDR
 	finish := func(err error) {
 		err = redactError(err, c.APIKey)
 		entry.Status = statusOf(err)
@@ -343,7 +346,8 @@ func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 		body["stream_options"] = opts
 	}
 	body["stream"] = true
-	up, e := s.openUpstream(map[string]any{"host_callback_id": r.HostCallbackID, "method": "POST", "url": s.config().BaseURL + path, "headers": upstreamHeaders(c, s.config().ZDR), "body": jsonBytes(body)}, start.Add(time.Duration(s.config().TimeoutSeconds)*time.Second))
+	entry.UpstreamAttempted = true
+	up, e := s.openUpstream(map[string]any{"host_callback_id": r.HostCallbackID, "method": "POST", "url": executionConfig.BaseURL + path, "headers": upstreamHeaders(c, executionConfig.ZDR), "body": jsonBytes(body)}, start.Add(time.Duration(executionConfig.TimeoutSeconds)*time.Second))
 	if e != nil {
 		release(e)
 		return early(e)

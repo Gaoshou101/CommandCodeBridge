@@ -46,6 +46,7 @@ def git_value(*arguments):
 commit = git_value("rev-parse", "HEAD")
 status = git_value("status", "--porcelain")
 manifest = {
+    "compatibility": json.loads((ROOT / "internal/bridge/compatibility.json").read_text(encoding="utf-8")),
     "version": args.version,
     "target": args.target,
     "abi_version": 1,

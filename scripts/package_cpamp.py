@@ -21,6 +21,8 @@ if b"data-commandcode-native-quota" not in page:
     parser.error("page does not contain the native CommandCode quota integration")
 if b"data-commandcode-native-windows" not in page:
     parser.error("page does not contain native CommandCode quota window history integration")
+if b"commandcodebridge-capabilities" not in page or b"recent-requests" not in page:
+    parser.error("page does not declare the current integration capabilities")
 if b"/commandcodebridge/auth/callback" not in page or b"commandcode_callback_placeholder" not in page:
     parser.error("page does not contain the native CommandCode localhost callback integration")
 
@@ -31,7 +33,10 @@ def git_value(folder, *arguments):
 
 
 version = re.search(r'const Version = "([^"]+)"', (ROOT / "internal/bridge/types.go").read_text(encoding="utf-8")).group(1)
+if git_value(checkout, "rev-parse", "--show-prefix"):
+    parser.error("CPAMP checkout must be its own Git repository; a nested source archive cannot prove upstream provenance")
 manifest = {
+    "compatibility": json.loads((ROOT / "internal/bridge/compatibility.json").read_text(encoding="utf-8")),
     "version": version,
     "artifact": "cpamp-web",
     "cpamp_repository": "https://github.com/seakee/CPA-Manager-Plus",
