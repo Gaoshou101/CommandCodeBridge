@@ -285,3 +285,59 @@ jobs:
         with:
           name: commandcodebridge-checksums
           path: dist/checksums.txt
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, release-checksums]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: commandcodebridge-*
+          path: dist
+          merge-multiple: true
+      - name: Verify release provenance and prepare notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python scripts/checksums.py dist --include-cpamp
+          python - <<'PY'
+          import json, os, pathlib, re, zipfile
+          version = re.search(r'const Version = "([^"]+)"', pathlib.Path('internal/bridge/types.go').read_text()).group(1)
+          assert os.environ['RELEASE_TAG'] == 'v' + version, 'tag/source version mismatch'
+          for archive in pathlib.Path('dist').glob('*.zip'):
+              with zipfile.ZipFile(archive) as bundle:
+                  build = json.loads(bundle.read('BUILD.json'))
+              assert build['version'] == version, archive.name
+              source = build.get('integration_source_commit') if build.get('artifact') == 'cpamp-web' else build.get('source_commit')
+              assert source == os.environ['GITHUB_SHA'], f'{archive.name}: wrong source commit'
+          notes = pathlib.Path('docs/RELEASE_NOTES.md').read_text(encoding='utf-8')
+          assert notes.splitlines()[2] == '## v' + version, 'release notes version mismatch'
+          pathlib.Path('dist/release-notes.md').write_text(notes.split('\n## 已发布 ', 1)[0], encoding='utf-8')
+          PY
+      - name: Publish verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          state="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          if [ "$state" = false ]; then
+            echo 'Release is already published; refusing to replace assets.' >&2
+            exit 1
+          fi
+          if [ "$state" != true ]; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "CommandCodeBridge $RELEASE_TAG" --notes-file dist/release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" dist/*.zip dist/*.zip.sha256 dist/checksums.txt --clobber
+          test "$(gh release view "$RELEASE_TAG" --json assets --jq '.assets | length')" = 11
+          gh release edit "$RELEASE_TAG" --draft=false --latest --notes-file dist/release-notes.md

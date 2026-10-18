@@ -94,4 +94,4 @@
 
 Node **31/31**；Windows Go 1.26 的项目测试／vet；Windows amd64 动态库编译；实际 CPA 的 `cpa_diagnostics.py` 与 `cpa_round2.py` 均通过。协议套件使用本机模拟端，包括有上限的 13 次 Chat／Responses／Messages、工具、图片传输、thinking 重放和 ZDR 头，真实生成请求数为 **0**。未重新运行未变更的 CPAMP 前端生产构建／组件套件，不将宿主联测冒充该构建门槛。
 
-真实 Claude、图片语义、thinking 权限与签名、ZDR 服务端策略、身份共享继续待验证。实际 200% zoom 与当前登录后官网参照仍需补证据。版本保持 v0.2.10 unreleased；未合并、发版或部署。
+真实 Claude、图片语义、thinking 权限与签名、ZDR 服务端策略、身份共享继续待验证。实际 200% zoom 与当前登录后官网参照仍需补证据。本轮核对完成时为 v0.2.10 未发布源码；后续已获用户合并／发版授权，实际发布状态见 [Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.10)。本次不部署目标服务。

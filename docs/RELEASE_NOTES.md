@@ -1,16 +1,38 @@
 # CommandCodeBridge 发布说明
 
-## 第二轮本地交付补充（v0.2.10 未发布源码）
+## v0.2.10
 
-新增按凭据隔离的模型实测证据、运行数据检查点／损坏恢复、统计分层汇总与独立文件写入；采样保留逐凭据隔离并增加抖动。真实协议脚本支持请求预算、无网络预览和脱敏报告。Claude／图片／thinking／ZDR 真实验收及真实身份共享**待验证**，第三轮继续参照 CommandCode 官网控制台优化。详细验收见 [VALIDATION.md](VALIDATION.md)，升级／恢复边界见 [DEPLOYMENT.md](DEPLOYMENT.md)。本地实现未发布、未部署。
+发布日期：2026-10-18。CPA 原生插件，C ABI 1 / RPC schema 6；调用官方 Provider API。
 
+### 本次更新
 
-## v0.2.10 — 未发布源码
+- **凭证诊断**：保存与宿主加载分别确认，对照 CPA 运行登记检查缺失、重复、旧路由与启停同步；账户查询、插件直测和 CPA 请求分别显示来源与时间，支持脱敏摘要。
+- **模型证据**：按凭证版本、账户、模型映射和时间隔离结果，区分套餐拒绝、未知权限、临时限流与过期证据；组合搜索与证据筛选、手机精简列表和详情抽屉。
+- **数据恢复**：运行文件独立写入、检查点、损坏隔离及恢复警告；统计保留近期分钟桶、历史日总量，默认不删除日总量。采样保持逐凭证隔离并增加正抖动。
+- **Studio 风格控制台**：参照官方公开截图统一五页导航、明暗主题、字阶、按钮和边框；凭据页优先展示额度，设置按任务分区，通用窗口支持键盘焦点循环、Esc 和关闭返回原行。
+- **管理会话**：退出清空业务窗口、日志、详情与测试输出，丢弃旧身份的较晚响应；管理认证按 Bearer／X-Management-Key 命名。
+- **升级检查**：分别核验插件接口、实际服务页面、额度／最近请求／周期历史标识和快照后端；未知能力保持未知。面板安装前预览目标、备份和重启条件。
 
-- 新增凭证运行登记诊断、保存／加载分别确认和脱敏摘要；区分账户查询、插件直测与 CPA 请求证据。
-- 新增升级兼容检查与共享基线，分别核对实际页面和快照后端；无法只读确认时显示未知。
-- 面板安装前预览目标、备份与重启条件；CPAMP 适配包含后端只读健康能力声明。
-- 本地验证和边界见 [VALIDATION.md](VALIDATION.md)。此轮未发布、未更新插件商店、未部署目标服务；下方为已发布 v0.2.9 的历史说明。
+### 升级与恢复
+
+1. 备份整个插件 `data_dir`，在 CPA 插件商店更新至 **v0.2.10**，确认实际运行版本与凭证登记状态。
+2. 在「设置 → CPAMP 原生面板」更新页面，检查生效状态并强制刷新浏览器；首次启用或改变页面路径需要重启 Manager Server，原路径页面更新无需重启。
+3. 原有统计首次分层汇总会保留 `statistics-before-daily-v1.json`。独立文件检查点最多每分钟更新，不提供跨文件事务或断电 fsync 保证；降级无法自动恢复旧分钟精度。非零保留期限会永久过期旧统计。
+4. 完整周期快照和只读健康能力声明需要匹配的 Manager Server 源码适配与重建；只更新 HTML 不能替代后端补丁。
+
+### 下载与校验
+
+Linux amd64、Linux arm64、Windows amd64、macOS arm64 四平台 ZIP，以及 `commandcodebridge_0.2.10_cpamp-web.zip`、五个 `.zip.sha256` 和统一 `checksums.txt`，共 **11 个资产**。`BUILD.json` 记录同一来源提交、兼容基线、库、本地 OAuth 接收器与内嵌页面摘要；四平台内嵌页面与独立 CPAMP 页面一致。
+
+动态库按 CPA 服务器平台选择，本地 OAuth 接收器按浏览器电脑平台选择。Linux 包要求 glibc ≥2.34；Alpine/musl 需另行构建。CPA 支持基线为 v8.0.23，CPAMP 页面基于 `dbf61dd`。插件源：[registry.json](https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json)。
+
+### 验证与边界
+
+本地已完成 Node 31 项、Go 测试／vet、Windows 动态库、隔离 CPA 与 CPAMP 联测，以及五页 × 桌面／手机 × 明暗主题的 20 组前后对照。标签发布流程要求协议测试、四平台构建和来源／摘要一致性校验通过后才发布完整资产。
+
+按用户选择，**真实 Claude Messages、图片语义、thinking 权限与签名、ZDR 上游接受及保留策略、个人／组织与同账号多 key 身份共享仍待验证**。实际浏览器 200% zoom、当前登录后官网参照仍待补证据；不宣称逐像素复刻。本次发版不包含服务器部署，也没有真实模型生成。
+
+详细记录：[验证](https://github.com/Gaoshou101/CommandCodeBridge/blob/v0.2.10/docs/VALIDATION.md)、[升级与恢复](https://github.com/Gaoshou101/CommandCodeBridge/blob/v0.2.10/docs/DEPLOYMENT.md)、[第三轮设计](https://github.com/Gaoshou101/CommandCodeBridge/blob/v0.2.10/docs/ROUND3_UI_REVIEW.md)。
 
 ## 已发布 v0.2.9
 
