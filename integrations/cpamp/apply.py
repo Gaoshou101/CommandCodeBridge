@@ -8,6 +8,7 @@ import json
 import pathlib
 import re
 import shutil
+from panel_validation import load_compatibility, validate_antigravity_identity, validate_checkout
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('checkout', type=pathlib.Path)
@@ -174,6 +175,13 @@ func New(st *store.Store) *Service {'''),
 }
 # Keep the remote handoff instructions alongside the native providers' text.
 integration_root = source.parents[1]
+compatibility = load_compatibility(integration_root)
+baseline_commit = compatibility['cpamp_source_commit']
+try:
+    validate_checkout(root, compatibility)
+    validate_antigravity_identity((root / 'apps/web/src/utils/quota/constants.ts').read_bytes())
+except ValueError as error:
+    raise SystemExit(f'Unsupported CPAMP source: {error}. No prepared files have been written.')
 version_source = integration_root / 'internal/bridge/types.go'
 if version_source.is_file():
     version = re.search(r'const Version = "([^"]+)"', version_source.read_text(encoding='utf-8')).group(1)
@@ -195,7 +203,7 @@ for locale, (hint, placeholder, label) in translations.items():
 prepared = {}
 for path, replacements in changes.items():
     if not path.is_file():
-        raise SystemExit(f'Unsupported CPAMP source: required file missing: {path.relative_to(root)}. Verified baseline: dbf61ddf438f399558722df3467355c42af9005d. No prepared files have been written.')
+        raise SystemExit(f'Unsupported CPAMP source: required file missing: {path.relative_to(root)}. Verified baseline: {baseline_commit}. No prepared files have been written.')
     text = path.read_text(encoding='utf-8').replace('\r\n', '\n')
     if path.parent.name == 'locales':
         text = re.sub(r'^    "commandcode_(?:oauth_hint|callback_placeholder|callback_label|open_receiver)":.*\n', '', text, flags=re.MULTILINE)
@@ -215,7 +223,7 @@ for path, replacements in changes.items():
         if new in text:
             continue
         if text.count(old) != 1:
-            raise SystemExit(f'Unsupported CPAMP source: insertion anchor missing or ambiguous in {path.relative_to(root)}. Verified baseline: dbf61ddf438f399558722df3467355c42af9005d. Run --check against matching source before upgrading; no prepared files have been written.')
+            raise SystemExit(f'Unsupported CPAMP source: insertion anchor missing or ambiguous in {path.relative_to(root)}. Verified baseline: {baseline_commit}. Run --check against matching source before upgrading; no prepared files have been written.')
         text = text.replace(old, new, 1)
     prepared[path] = text
 if not args.check:

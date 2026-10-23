@@ -1,6 +1,30 @@
 # CommandCodeBridge 发布说明
 
-## v0.2.10
+## v0.2.11
+
+发布日期：2026-10-23。CPA 原生插件，C ABI 1 / RPC schema 6；调用官方 Provider API。
+
+### 本次更新
+
+- **修复 Gemini 额度窗口**：CPAMP 基线升级至 `55d452ef`（上游 #986），Antigravity UA 从 `antigravity/cli/1.0.13` 对齐到 `antigravity/hub/2.23.0`，避免上游裁剪 Gemini 额度组后回落为 `unknown` 窗口。
+- **单一源码基线**：构建检出、构建标识、测试用 Manager 二进制与适配报错读取 `internal/bridge/compatibility.json`，清除 workflow 独立旧值。
+- **构建、发布和部署防线**：共用身份、集成标识与来源校验；按 `antigravity/hub/` scheme 识别模板拼接，拒绝任何 `antigravity/cli/` 残留。覆盖前端／原生打包、嵌入、发布校验、实际 HTTP 页面及插件安装。
+- **回归覆盖**：旧／新／模板／混合 UA、Git 基线与后代、错误来源和摘要、四平台 ZIP 一致性与发行包内核验脚本；CI 同时运行上游 UA 常量测试和匹配源码的真实 Manager 安装联测。
+
+### 升级步骤
+
+1. 更新插件至 **v0.2.11**，确认实际运行版本。
+2. 在「设置 → CPAMP 原生面板」更新页面并检查生效状态；异机／独立容器使用 `commandcodebridge_0.2.11_cpamp-web.zip`。
+3. 强制刷新浏览器并刷新额度，确认 Gemini 的 5h／周窗口。**只更新动态库不会替换已落盘 HTML。** 原路径页面更新无需重启，首次启用或切换路径仍需重启 Manager Server。
+4. 手工部署可用包内 `verify_cpamp_panel.py URL --expected /实际路径/management.html` 核验，保留随包提供的 `integrations/cpamp/`。已有 CommandCode 快照后端补丁不因本次 UA 修复而需要重复部署。
+
+### 下载与校验
+
+四平台原生 ZIP、独立 CPAMP 前端 ZIP、五个 `.zip.sha256` 和统一 `checksums.txt`，共 **11 个资产**。四平台内嵌同一页面，`BUILD.json` 记录匹配版本、来源提交、兼容基线及摘要。CPA 支持基线仍为 v8.0.23；CPAMP 源码以包内兼容信息为准。
+
+发布由标签 CI 执行，要求回归、协议与原生宿主联测、四平台构建和来源／摘要校验通过。本次不访问或修改 VPS，不进行真实模型生成；上游 UA 问题依据 #983／#986 与构建源码核验，未重复使用线上凭证调用配额接口。
+
+## 已发布 v0.2.10
 
 发布日期：2026-10-18。CPA 原生插件，C ABI 1 / RPC schema 6；调用官方 Provider API。
 

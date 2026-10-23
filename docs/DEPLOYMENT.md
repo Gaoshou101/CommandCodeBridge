@@ -1,6 +1,15 @@
 # CPAMP 部署、升级与回滚
 
-本文说明 CommandCodeBridge v0.2.9 的安装、页面更新与回滚。路径应以实际运行环境为准；历史排查中的路径仅用于说明当时的问题。
+本文说明 CommandCodeBridge v0.2.11 的安装、页面更新与回滚。路径应以实际运行环境为准；历史排查中的路径仅用于说明当时的问题。
+
+## v0.2.11：更新 Antigravity 面板身份
+
+1. 更新插件至 v0.2.11，确认实际运行版本。
+2. 在「设置 → CPAMP 原生面板」更新页面；异机／容器使用同版本前端 ZIP。仅更新动态库不会替换 `panelPath`／`PANEL_PATH` 已指向的 HTML。
+3. 用包内 `verify_cpamp_panel.py URL --expected /实际路径/management.html` 核验真实 HTTP 页面。该检查同时拒绝旧 Antigravity UA；需保留包内 `integrations/cpamp/panel_validation.py`。
+4. 强刷浏览器并刷新额度，确认 Gemini 5h／周窗口。已有外部页面原路径更新无需重启；首次切换路径仍需重启 Manager Server。
+
+构建基线只由 `internal/bridge/compatibility.json` 的 `cpamp_source_commit` 指定；页面与测试用 Manager 均从该源码生成。每次升级仍须通过完整 CI，历史部署与验证记录不随基线改写。
 
 ## v0.2.9：最近请求同步与额度持久化
 
@@ -192,7 +201,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 - 快照后端仅在同机 loopback `GET /health` 明确返回布尔能力 `capabilities.commandcode_quota_snapshots_v1` 时判定。旧健康响应、异机／容器不可探测、超时和未知版本均显示未确认，不据此写入试探快照，也不推断不兼容。
 - 页面安装预览列出目标与备份规则，并按最终检查显示重启条件。HTML 热替换不会重建或重启 Manager Server；新增健康声明和快照名单需要匹配源码补丁、重建并重启该服务。
 
-兼容清单固定 CPA v8.0.23、ABI 1／RPC 6、CPAMP `dbf61dd`、Manager 1.13.1／1.14.0 基线。较新 CPA 的 CI 候选任务只报告结果，不能替代已验证基线；其本轮远端执行结果尚未取得。
+兼容清单固定 CPA v8.0.23、ABI 1／RPC 6；CPAMP 源码与已验证 Manager 版本从 `internal/bridge/compatibility.json` 读取。较新 CPA 的 CI 候选任务只报告结果，不能替代已验证基线；其本轮远端执行结果尚未取得。
 
 
 ## 运行数据恢复与统计迁移（v0.2.10）

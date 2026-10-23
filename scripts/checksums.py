@@ -3,8 +3,14 @@ import argparse
 import hashlib
 import json
 import pathlib
+import sys
 import zipfile
 
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'integrations/cpamp'))
+from panel_validation import load_compatibility, validate_panel, validate_panel_provenance
+
+baseline = load_compatibility(ROOT)
 TARGETS = {"linux-amd64": "so", "linux-arm64": "so", "windows-amd64": "dll", "darwin-arm64": "dylib"}
 parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=pathlib.Path)
@@ -31,6 +37,8 @@ for archive in archives:
         if not isinstance(compatibility, dict) or compatibility.get("schema") != 1 or not compatibility.get("cpa_baseline") or not compatibility.get("cpamp_source_commit"):
             parser.error("package compatibility baseline missing")
         compatibilities.add(json.dumps(compatibility, sort_keys=True))
+        if compatibility != baseline:
+            parser.error('package compatibility differs from the current source baseline')
         if build.get("artifact") == "cpamp-web":
             if not args.include_cpamp or panel_source is not None:
                 parser.error("unexpected or duplicate CPAMP frontend")
@@ -38,6 +46,11 @@ for archive in archives:
                 parser.error("invalid CPAMP archive filename")
             if hashlib.sha256(bundle.read("management.html")).hexdigest() != build["management_html_sha256"]:
                 parser.error("CPAMP frontend checksum mismatch")
+            try:
+                validate_panel_provenance(build, baseline)
+                validate_panel(bundle.read('management.html'), build['version'])
+            except ValueError as error:
+                parser.error(str(error))
             if build["integration_source_dirty"] is not False or not build["integration_source_commit"] or not build["cpamp_source_commit"]:
                 parser.error("CPAMP release requires clean, traceable integration source")
             for license_name in ["LICENSE-CPAMP", "LICENSE-CommandCodeBridge"]:

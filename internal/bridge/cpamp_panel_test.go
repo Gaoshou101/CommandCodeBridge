@@ -504,3 +504,24 @@ func TestNativePanelSettingsAndEmbeddedPage(t *testing.T) {
 		t.Fatal("development build pretended to contain a panel")
 	}
 }
+
+func TestNativePanelAntigravityIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name, identity string
+		valid          bool
+	}{
+		{"legacy", "antigravity/cli/1.0.13", false},
+		{"missing", "", false},
+		{"hub", "antigravity/hub/2.23.0 darwin/arm64", true},
+		{"template", "antigravity/hub/${e} ${t}", true},
+		{"mixed", "antigravity/hub/${e} antigravity/cli/1.0.13", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			page := []byte("<html data-commandcode-native-quota>CommandCodeBridge v" + Version + " " + tc.identity + "</html>")
+			err := validateNativePanelContent(page)
+			if (err == nil) != tc.valid {
+				t.Fatalf("identity validation: valid=%v error=%v", tc.valid, err)
+			}
+		})
+	}
+}

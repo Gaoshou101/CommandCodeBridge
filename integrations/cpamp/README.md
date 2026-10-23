@@ -1,5 +1,11 @@
 # CPAMP 原生凭证集成
 
+## v0.2.11：Antigravity 身份与单一基线
+
+面板必须含 `antigravity/hub/` 且不得含 `antigravity/cli/`；UA 在构建产物中可能为模板拼接，不要求完整版本字面量。所有 Python 工具共用 `panel_validation.py`，发布 ZIP 必须保留 `integrations/cpamp/` 以运行校验与适配。更新 CPAMP 基线只改 `compatibility.json` 的 `cpamp_source_commit`，CI 自动用该源码构建页面和测试用 Manager；新源码仍须通过全部插入点、上游身份测试与原生联测。
+
+升级至 v0.2.11 后更新原生面板、核验实际 HTTP 页面并强刷浏览器。只升级插件动态库不会替换已落盘页面。
+
 ## v0.2.9：最近请求与额度恢复
 
 凭证工作区打开时读取插件脱敏缓存，每 30 秒同步最近请求与额度；切回浏览器页面时立即同步。最近请求取插件保存的真实模型请求，保留历史时间，不受 Manager 监控导入延迟影响，本地冷却跳过不计入状态条。Manager 的全量历史统计仍使用原有统计接口。
@@ -33,8 +39,8 @@ CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加�
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。
-2. 通过支持热升级的 CPA 插件商店更新 CommandCodeBridge；确认运行版本为 `0.2.9`。从 [v0.2.9 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.9) 选择匹配平台 ZIP，并核验 `checksums.txt`。
-3. **同时升级管理页面**。同机使用上节一键入口；异机面板版本匹配 CPAMP `dbf61dd` 时，下载 Release 的 `commandcodebridge_0.2.9_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
+2. 通过支持热升级的 CPA 插件商店更新 CommandCodeBridge；确认运行版本为 `0.2.11`。从 [v0.2.11 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.11) 选择匹配平台 ZIP，并核验 `checksums.txt`。
+3. **同时升级管理页面**。同机使用上节一键入口；异机面板匹配包内 `BUILD.json` 的 CPAMP 基线时，下载 Release 的 `commandcodebridge_0.2.11_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
 
 ```bash
 python /path/to/CommandCodeBridge/integrations/cpamp/apply.py /path/to/CPA-Manager-Plus --check
@@ -48,7 +54,7 @@ npm --workspace apps/web run build
 # python scripts/package_cpamp.py /path/to/CPA-Manager-Plus
 ```
 
-脚本会先验证所有插入点再写入，重复执行不会重复插入。已验证的 CPAMP 源码为 `dbf61ddf438f399558722df3467355c42af9005d`。不同源码版本可能需要调整插入点，脚本会拒绝不匹配的结构。
+脚本会先验证所有插入点再写入，重复执行不会重复插入。已验证的 CPAMP 源码由 `internal/bridge/compatibility.json` 的 `cpamp_source_commit` 指定，发行包从 `BUILD.json.compatibility` 读取同一值。适配允许该提交及其 Git 后代，发布必须精确匹配基线；同时拒绝旧 Antigravity UA。不同源码版本可能需要调整插入点，脚本会拒绝不匹配的结构。
 
 4. 安装构建产物 `apps/web/dist/index.html`，或使用上述 Release 中的 `management.html`。ZIP 提供许可证、构建信息、校验值与 `verify_cpamp_panel.py`；如当前部署版本不匹配，应在对应源码上应用适配后自行构建。
 5. 按下节核验实际服务页面，再强制刷新浏览器。API key 账号直接在原生凭证列表、卡片或详情额度页点击「刷新额度」，无需重新添加凭证。

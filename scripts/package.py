@@ -7,9 +7,12 @@ import pathlib
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'integrations/cpamp'))
+from panel_validation import validate_panel
 TARGETS = {"linux-amd64": ".so", "linux-arm64": ".so", "windows-amd64": ".dll", "darwin-arm64": ".dylib"}
 parser = argparse.ArgumentParser()
 parser.add_argument("library", type=pathlib.Path)
@@ -27,8 +30,10 @@ panel_file = ROOT / 'internal/bridge/panel-assets/management.html.gz'
 if not panel_file.is_file():
     parser.error('embed the matching CPAMP panel before building and packaging')
 panel_page = gzip.decompress(panel_file.read_bytes())
-if ('CommandCodeBridge v' + args.version).encode() not in panel_page:
-    parser.error('embedded CPAMP panel version mismatch')
+try:
+    validate_panel(panel_page, args.version)
+except ValueError as error:
+    parser.error(str(error))
 if not all(c.isalnum() or c in "-._" for c in args.target + args.version):
     parser.error("invalid target or version")
 output = ROOT / "dist"
