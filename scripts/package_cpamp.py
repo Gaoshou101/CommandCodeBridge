@@ -25,6 +25,19 @@ if b"commandcodebridge-capabilities" not in page or b"recent-requests" not in pa
     parser.error("page does not declare the current integration capabilities")
 if b"/commandcodebridge/auth/callback" not in page or b"commandcode_callback_placeholder" not in page:
     parser.error("page does not contain the native CommandCode localhost callback integration")
+# Upstream #986 aligned the Antigravity client identity to Hub 2.23.0. A page built
+# from an older CPAMP baseline still sends antigravity/cli/1.0.13, which makes Cloud
+# Code omit the Gemini quota group; the panel then falls back to the models-derived
+# bucket and every Gemini window degrades to window_kind 'unknown'. The checkout must
+# therefore contain 55d452ef (#986) or newer.
+# The UA is assembled from template literals, so match the scheme prefix rather than
+# a fully rendered version string.
+if b"antigravity/hub/" not in page:
+    parser.error("page does not send an Antigravity Hub user agent; "
+                 "rebuild from a CPAMP checkout at or after 55d452ef (#986)")
+if b"antigravity/cli/" in page:
+    parser.error("page still embeds the stale antigravity/cli/ identity; "
+                 "rebuild from a CPAMP checkout at or after 55d452ef (#986)")
 
 
 def git_value(folder, *arguments):

@@ -28,6 +28,21 @@ with zipfile.ZipFile(args.archive) as archive:
         parser.error('frontend compatibility baseline differs from native source')
     if len(page) > 16 * 1024 * 1024 or b'data-commandcode-native-quota' not in page or ('CommandCodeBridge v' + version).encode() not in page:
         parser.error('frontend is missing the current native integration')
+    # Upstream #986 aligned the Antigravity client identity to Hub 2.23.0. A page
+    # built from an older baseline still sends antigravity/cli/1.0.13, which makes
+    # Cloud Code omit the Gemini quota group, so the panel silently falls back to
+    # the models-derived bucket and every Gemini window degrades to window_kind
+    # 'unknown'. Refuse to embed such a page: the baseline commit must be at or
+    # after 55d452ef.
+    # The UA is assembled from template literals, so match the scheme prefix
+    # (antigravity/hub/) rather than a fully rendered version string.
+    if b'antigravity/hub/' not in page:
+        parser.error('frontend does not send an Antigravity Hub user agent; '
+                     'rebuild from a CPAMP baseline at or after 55d452ef (#986), '
+                     'otherwise Gemini quota windows degrade to unknown')
+    if b'antigravity/cli/' in page:
+        parser.error('frontend still embeds the stale antigravity/cli/ identity; '
+                     'rebuild from a CPAMP baseline at or after 55d452ef (#986)')
 target = root / 'internal/bridge/panel-assets/management.html.gz'
 target.write_bytes(gzip.compress(page, mtime=0))
 (target.parent / 'LICENSE-CPAMP').write_bytes(cpamp_license)

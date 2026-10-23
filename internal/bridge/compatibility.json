@@ -3,11 +3,19 @@
   "cpa_baseline": "8.0.23",
   "abi_version": 1,
   "rpc_schema": 6,
-  "cpamp_source_commit": "dbf61ddf438f399558722df3467355c42af9005d",
-  "manager_baselines": ["1.13.1", "1.14.0"],
+  "cpamp_source_commit": "55d452ef4ad6df2f7df77c0ede01aaba3ef8310e",
+  "manager_baselines": [
+    "1.13.1",
+    "1.14.0",
+    "1.14.7"
+  ],
   "minimum_quota_cache_plugin": "0.2.9",
   "minimum_diagnostics_plugin": "0.2.10",
   "snapshot_backend": "commandcode_quota_snapshots_v1",
-  "page_capabilities": ["quota", "recent-requests", "quota-windows"],
-  "notes": "Baselines are verified versions, not a guarantee for newer upstream releases. Full snapshot support requires the Manager Server patch."
+  "page_capabilities": [
+    "quota",
+    "recent-requests",
+    "quota-windows"
+  ],
+  "notes": "Baselines are verified versions, not a guarantee for newer upstream releases. Full snapshot support requires the Manager Server patch. cpamp_source_commit must include upstream #986 (Antigravity Hub 2.23.0 UA); older baselines ship antigravity/cli/1.0.13, which makes Cloud Code omit the Gemini quota group."
 }
