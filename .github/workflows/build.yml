@@ -52,14 +52,15 @@ jobs:
           sha256sum --check --ignore-missing checksums.txt
           cd "$GITHUB_WORKSPACE"
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.8_linux_amd64.zip
-          mkdir -p /tmp/cpamp-test
-          gh release download v1.14.0 --repo seakee/CPA-Manager-Plus --pattern cpa-manager-plus_v1.14.0_linux_amd64.tar.gz --pattern checksums.txt --dir /tmp/cpamp-test
-          cd /tmp/cpamp-test
-          sha256sum --check --ignore-missing checksums.txt
-          tar -xzf cpa-manager-plus_v1.14.0_linux_amd64.tar.gz
-          cd "$GITHUB_WORKSPACE"
-          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY=/tmp/cpamp-test/cpa-manager-plus_v1.14.0_linux_amd64/cpa-manager-plus python3 tests/cpamp_native_panel.py
-          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY=/tmp/cpamp-test/cpa-manager-plus_v1.14.0_linux_amd64/cpa-manager-plus python3 tests/cpamp_native_panel.py --environment-only
+      - uses: actions/download-artifact@v4
+        with:
+          name: cpamp-manager-test
+          path: dist/cpamp-manager-test
+      - name: Native panel deployment against the same CPAMP source baseline
+        run: |
+          chmod +x dist/cpamp-manager-test/cpa-manager-plus
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY="$PWD/dist/cpamp-manager-test/cpa-manager-plus" python3 tests/cpamp_native_panel.py
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY="$PWD/dist/cpamp-manager-test/cpa-manager-plus" python3 tests/cpamp_native_panel.py --environment-only
 
   build:
     needs: test
@@ -184,23 +185,39 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26.x'
+      - name: Regression tests for CPAMP identity and release gates
+        run: python -m unittest discover -s tests -p 'test_cpamp_panel_validation.py' -v
+      - name: Read the CPAMP source baseline
+        id: cpamp-baseline
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from integrations.cpamp.panel_validation import load_compatibility
+          baseline = load_compatibility(Path.cwd())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('commit=' + baseline['cpamp_source_commit'] + '\n')
+          PY
       - name: Build the pinned CPAMP native quota integration
         shell: bash
         env:
-          VERSION: commandcodebridge-integration-dbf61dd
+          CPAMP_SOURCE_COMMIT: ${{ steps.cpamp-baseline.outputs.commit }}
         run: |
           cpamp_source="$RUNNER_TEMP/cpamp-source"
           git clone --filter=blob:none https://github.com/seakee/CPA-Manager-Plus.git "$cpamp_source"
-          git -C "$cpamp_source" checkout dbf61ddf438f399558722df3467355c42af9005d
+          git -C "$cpamp_source" checkout --detach "$CPAMP_SOURCE_COMMIT"
+          export VERSION="commandcodebridge-integration-${CPAMP_SOURCE_COMMIT:0:12}"
           python integrations/cpamp/apply.py "$cpamp_source" --check
           python integrations/cpamp/apply.py "$cpamp_source"
           cd "$cpamp_source"
           npm ci --ignore-scripts --workspace apps/web
           npm --workspace apps/web run type-check
-          npm --workspace apps/web run test -- src/features/accounts/components/CommandCodeQuotaCard.test.tsx src/features/accounts/components/commandCodeQuotaStore.test.ts src/features/accounts/model/commandCodeQuotaWindows.test.ts src/features/accounts/model/accountHealthEvidence.test.ts src/features/accounts/model/accountQuotaWindowDefinitions.test.ts src/features/accounts/components/QuotaWindowCard.test.tsx src/services/api/CommandCodeOAuth.test.ts src/services/api/oauth.test.ts src/features/oauth/OAuthPage.test.tsx src/features/accounts/components/accountDetail/AccountQuotaTab.test.tsx
+          npm --workspace apps/web run test -- src/utils/quota/constants.test.ts src/features/accounts/components/CommandCodeQuotaCard.test.tsx src/features/accounts/components/commandCodeQuotaStore.test.ts src/features/accounts/model/commandCodeQuotaWindows.test.ts src/features/accounts/model/accountHealthEvidence.test.ts src/features/accounts/model/accountQuotaWindowDefinitions.test.ts src/features/accounts/components/QuotaWindowCard.test.tsx src/services/api/CommandCodeOAuth.test.ts src/services/api/oauth.test.ts src/features/oauth/OAuthPage.test.tsx src/features/accounts/components/accountDetail/AccountQuotaTab.test.tsx
           npm --workspace apps/web run build
           (cd apps/manager-server && go test ./internal/service/quotasnapshot ./internal/http/controller/health -run TestCommandCode -count=1)
           cd "$GITHUB_WORKSPACE"
+          mkdir -p dist/cpamp-manager-test
+          (cd "$cpamp_source/apps/manager-server" && go build -trimpath -o "$GITHUB_WORKSPACE/dist/cpamp-manager-test/cpa-manager-plus" ./cmd/cpa-manager-plus)
           python scripts/package_cpamp.py "$cpamp_source"
           python - "$cpamp_source" <<'PY'
           import pathlib, subprocess, sys, tempfile, zipfile
@@ -211,6 +228,10 @@ jobs:
               script = pathlib.Path(temporary) / "integrations/cpamp/apply.py"
               subprocess.run([sys.executable, str(script), sys.argv[1], "--check"], check=True)
           PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cpamp-manager-test
+          path: dist/cpamp-manager-test/cpa-manager-plus
       - uses: actions/upload-artifact@v4
         with:
           name: commandcodebridge-cpamp-web

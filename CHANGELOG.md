@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.11] - 2026-10-23
+
+### Fixed
+
+- CPAMP 基线升级至 `55d452ef`（上游 #986），将 Antigravity UA 从 `antigravity/cli/1.0.13` 对齐至 `antigravity/hub/2.23.0`，恢复 Gemini 5h／周额度组，避免窗口退化为 `unknown`。
+- 构建检出、构建版本标识和测试用 Manager 二进制均从 `internal/bridge/compatibility.json` 的 `cpamp_source_commit` 取得基线，移除 workflow 和适配脚本中的独立旧值。
+- 共用页面身份、集成标识与来源校验，覆盖适配、打包、嵌入、发布校验和实际 HTTP 页面核验；插件安装前再次拒绝旧 UA。新增旧／新／模板／混合 UA、来源不符及 ZIP 发布回归，并注册 CI 与上游 UA 测试。
+- 升级插件后仍需更新 CPAMP 原生面板并强刷浏览器；仅替换动态库不会更新已落盘的页面。
+
 ## [0.2.10] - 2026-10-18
 
 ### Added

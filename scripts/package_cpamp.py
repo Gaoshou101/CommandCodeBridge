@@ -5,9 +5,12 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
 import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'integrations/cpamp'))
+from panel_validation import load_compatibility, validate_checkout, validate_panel
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("checkout", type=pathlib.Path, help="CPAMP source checkout used to build the page")
 args = parser.parse_args()
@@ -17,27 +20,6 @@ license_file = checkout / "LICENSE"
 if not panel.is_file() or not license_file.is_file():
     parser.error("checkout must contain a built apps/web/dist/index.html and LICENSE")
 page = panel.read_bytes()
-if b"data-commandcode-native-quota" not in page:
-    parser.error("page does not contain the native CommandCode quota integration")
-if b"data-commandcode-native-windows" not in page:
-    parser.error("page does not contain native CommandCode quota window history integration")
-if b"commandcodebridge-capabilities" not in page or b"recent-requests" not in page:
-    parser.error("page does not declare the current integration capabilities")
-if b"/commandcodebridge/auth/callback" not in page or b"commandcode_callback_placeholder" not in page:
-    parser.error("page does not contain the native CommandCode localhost callback integration")
-# Upstream #986 aligned the Antigravity client identity to Hub 2.23.0. A page built
-# from an older CPAMP baseline still sends antigravity/cli/1.0.13, which makes Cloud
-# Code omit the Gemini quota group; the panel then falls back to the models-derived
-# bucket and every Gemini window degrades to window_kind 'unknown'. The checkout must
-# therefore contain 55d452ef (#986) or newer.
-# The UA is assembled from template literals, so match the scheme prefix rather than
-# a fully rendered version string.
-if b"antigravity/hub/" not in page:
-    parser.error("page does not send an Antigravity Hub user agent; "
-                 "rebuild from a CPAMP checkout at or after 55d452ef (#986)")
-if b"antigravity/cli/" in page:
-    parser.error("page still embeds the stale antigravity/cli/ identity; "
-                 "rebuild from a CPAMP checkout at or after 55d452ef (#986)")
 
 
 def git_value(folder, *arguments):
@@ -46,14 +28,18 @@ def git_value(folder, *arguments):
 
 
 version = re.search(r'const Version = "([^"]+)"', (ROOT / "internal/bridge/types.go").read_text(encoding="utf-8")).group(1)
-if git_value(checkout, "rev-parse", "--show-prefix"):
-    parser.error("CPAMP checkout must be its own Git repository; a nested source archive cannot prove upstream provenance")
+try:
+    compatibility = load_compatibility(ROOT)
+    validate_panel(page, version)
+    cpamp_commit = validate_checkout(checkout, compatibility, exact=True)
+except ValueError as error:
+    parser.error(str(error))
 manifest = {
-    "compatibility": json.loads((ROOT / "internal/bridge/compatibility.json").read_text(encoding="utf-8")),
+    "compatibility": compatibility,
     "version": version,
     "artifact": "cpamp-web",
     "cpamp_repository": "https://github.com/seakee/CPA-Manager-Plus",
-    "cpamp_source_commit": git_value(checkout, "rev-parse", "HEAD"),
+    "cpamp_source_commit": cpamp_commit,
     "cpamp_source_dirty": bool(git_value(checkout, "status", "--porcelain")),
     "integration_source_commit": git_value(ROOT, "rev-parse", "HEAD"),
     "integration_source_dirty": bool(git_value(ROOT, "status", "--porcelain")),

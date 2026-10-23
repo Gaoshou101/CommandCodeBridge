@@ -12,9 +12,13 @@
 - **原生额度窗口**：在 CPAMP 列表、卡片和详情查看 5h、周、月额度，查询窗口请求统计、预测和周期快照。
 - **请求记录**：查看凭证健康度、tokens、缓存用量、预估花费、首字耗时、输出速率及模型统计；支持明暗主题和手机布局。
 
-当前版本 **v0.2.10**。插件调用官方 Provider API；Go 订阅的 `/alpha/generate` 路径和固定上游 provider 模式不在支持范围内。账户用量通过官方 `/alpha/...` 查询接口读取，模型权限以实际套餐为准。
+当前版本 **v0.2.11**。插件调用官方 Provider API；Go 订阅的 `/alpha/generate` 路径和固定上游 provider 模式不在支持范围内。账户用量通过官方 `/alpha/...` 查询接口读取，模型权限以实际套餐为准。
 
-### v0.2.10 更新
+### v0.2.11 更新
+
+修复 Antigravity Gemini 5h／周额度缺失：面板对齐上游 Hub UA，构建、发布与安装增加旧 UA 拦截。升级插件后需在「设置 → CPAMP 原生面板」更新页面并强制刷新浏览器。CPAMP 源码基线统一记录在 [compatibility.json](./internal/bridge/compatibility.json)。
+
+### v0.2.10 功能
 
 新增凭证运行登记诊断、脱敏摘要和升级兼容检查。在「凭据与用量」查看登记与三类证据，在「设置」核对插件、页面和快照后端。保存成功与宿主加载分别显示；只读诊断不发模型生成请求。
 
@@ -35,7 +39,7 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存并重载配置，在 CPAMP「插件商店」找到 **CommandCodeBridge**，选择 Latest 或 **v0.2.10** 安装。支持热升级的宿主会下载匹配平台的 ZIP、验证校验值并切换版本；安装后检查插件控制台显示的运行版本。
+保存并重载配置，在 CPAMP「插件商店」找到 **CommandCodeBridge**，选择 Latest 或 **v0.2.11** 安装。支持热升级的宿主会下载匹配平台的 ZIP、验证校验值并切换版本；安装后检查插件控制台显示的运行版本。
 
 也可从 [Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases/latest) 手动下载 ZIP 和 `checksums.txt`。按 **CPA 所在服务器**选择动态库：
 
@@ -61,7 +65,7 @@ Linux 发布包要求 glibc ≥2.34；Alpine/musl 需自行构建。手动安装
 
 ## 安装或更新原生面板
 
-**升级插件后还要更新 CPAMP 页面**，才能使用新版凭证布局。v0.2.10 动态库已内嵌匹配页面。
+**升级插件后还要更新 CPAMP 页面**，才能使用新版凭证布局。v0.2.11 动态库已内嵌匹配页面。
 
 CPA 与 Manager Server 在同一主机直接运行时：
 
@@ -76,7 +80,7 @@ CPA 与 Manager Server 在同一主机直接运行时：
 | 首次启用外部页面，或更改 Manager Server 的页面路径 | 重启 Manager Server 一次 |
 | 迁移插件数据目录，或旧宿主不支持动态库热升级 | 安排相应服务重启 |
 
-Manager Server 在另一台主机或独立容器中时，在其运行环境安装 `commandcodebridge_0.2.10_cpamp-web.zip` 内的 `management.html`，通过 `PANEL_PATH` 或 `panelPath` 托管。面板基于 CPAMP 源码 `dbf61dd`；不同版本应在匹配源码上应用适配。
+Manager Server 在另一台主机或独立容器中时，在其运行环境安装 `commandcodebridge_0.2.11_cpamp-web.zip` 内的 `management.html`，通过 `PANEL_PATH` 或 `panelPath` 托管。面板源码基线见 [compatibility.json](./internal/bridge/compatibility.json) 的 `cpamp_source_commit`；不同版本应在匹配源码上应用适配。
 
 **完整周期快照另需 Manager Server 接受 `commandcode` 平台。** 前端包附带适配脚本、服务器名单补丁和测试；按现有 Manager Server 的同一源码版本重建并部署。仅更新插件和页面不能替代这个服务器改动。[原生集成说明](./integrations/cpamp/README.md)包含构建、HTTP 生效核验和回滚步骤。
 

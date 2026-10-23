@@ -96,10 +96,14 @@ with tempfile.TemporaryDirectory(prefix='commandcodebridge-real-cpamp-') as temp
                 saved = json.loads(config.read_text())
                 assert {k: v for k, v in saved.items() if k != 'panelPath'} == ({} if args.environment_only else original)
                 intended = pathlib.Path(saved['panelPath']).read_bytes()
+                assert b'antigravity/hub/' in intended and b'antigravity/cli/' not in intended
                 stop()
                 assert start(log) == intended
                 active = host.call(API + '/cpamp/panel')
                 assert active['active'] and active['served_page']['native_quota'] and active['served_page']['matches']
+                verification = subprocess.run([os.sys.executable, str(pathlib.Path(__file__).resolve().parents[1] / 'scripts/verify_cpamp_panel.py'),
+                    f'http://127.0.0.1:{port}/management.html', '--expected', saved['panelPath']], capture_output=True, text=True)
+                assert verification.returncode == 0, verification.stdout + verification.stderr
                 assert host.call(API + '/cpamp/panel/install', {}).get('backups', []) == []
                 # A configured JSON panelPath also reads the file per request.
                 # Simulate an older external native page, then update in place.

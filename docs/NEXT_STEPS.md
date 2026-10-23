@@ -20,7 +20,7 @@
 - v0.2.9 已实现最近请求同步、额度落盘、重启恢复和密钥变更隔离；旧待办中的这些事项已经完成。
 - 仓库记录已有四平台 CPA v8.0.23 宿主联测、异常恢复、热升级和前端回归，以及真实免费 Ling 模型 Chat／Responses／工具往返验证。
 - Claude 原生 Messages、图片、thinking signature、ZDR，以及真实个人／组织身份和同账号多 key 的共享行为，仍有真实验证缺口。
-- CPAMP 页面固定基于源码 dbf61dd；完整周期快照另需 Manager Server 接受 commandcode。
+- CPAMP 页面基线由 internal/bridge/compatibility.json 的 cpamp_source_commit 指定；完整周期快照另需 Manager Server 接受 commandcode。
 - 第一轮使用项目内 Go 1.26 工具链与隔离 CPA 进行回归，结果见 VALIDATION.md；此前 PATH 缺少 Go 已不构成验证限制。
 - 最初规划时 GitHub 实时查询未成功；后续已创建 [PR #12](https://github.com/Gaoshou101/CommandCodeBridge/pull/12)，三轮源码均沿用该 PR。不据此推断当前生产部署或 Release 状态。
 

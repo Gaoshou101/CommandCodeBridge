@@ -11,7 +11,7 @@ CommandCodeBridge is an independent integration, not an official CommandCode pro
 
 Release shared libraries embed a modified CPA-Manager-Plus management panel
 from https://github.com/seakee/CPA-Manager-Plus (source baseline
-dbf61ddf438f399558722df3467355c42af9005d). The upstream license and copyrights
+recorded in BUILD.json compatibility.cpamp_source_commit). The upstream license and copyrights
 are included as LICENSE-CPAMP in native and frontend release archives.
 
 The console's request-log layout is inspired by ClinePassBridge.

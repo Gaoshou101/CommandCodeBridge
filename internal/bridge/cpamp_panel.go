@@ -88,10 +88,24 @@ func nativePanelContent() ([]byte, error) {
 	}
 	defer reader.Close()
 	content, err := io.ReadAll(io.LimitReader(reader, 16<<20+1))
-	if err != nil || len(content) > 16<<20 || !bytes.Contains(content, []byte("data-commandcode-native-quota")) || !bytes.Contains(content, []byte("CommandCodeBridge v"+Version)) {
-		return nil, fail(500, "内置原生面板版本或内容不匹配")
+	if err != nil {
+		return nil, fail(500, "内置原生面板损坏")
+	}
+	if err := validateNativePanelContent(content); err != nil {
+		return nil, err
 	}
 	return content, nil
+}
+
+// Installation checks the decompressed bytes before any panel/config write.
+func validateNativePanelContent(content []byte) error {
+	if len(content) > 16<<20 || !bytes.Contains(content, []byte("data-commandcode-native-quota")) || !bytes.Contains(content, []byte("CommandCodeBridge v"+Version)) {
+		return fail(500, "内置原生面板版本或内容不匹配")
+	}
+	if !bytes.Contains(content, []byte("antigravity/hub/")) || bytes.Contains(content, []byte("antigravity/cli/")) {
+		return fail(500, "内置原生面板缺少 antigravity/hub/ 身份或仍含旧 antigravity/cli/；请重新构建包含上游 #986 的匹配面板")
+	}
+	return nil
 }
 
 func managerBinaryExists(dir string) bool {
