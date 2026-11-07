@@ -238,4 +238,9 @@ if not args.check:
     shutil.copy2(source / 'commandcode_health_test.go.fragment', root / 'apps/manager-server/internal/http/controller/health/commandcode_health_test.go')
     shutil.copy2(source / 'CommandCodeOAuth.test.ts', root / 'apps/web/src/services/api/CommandCodeOAuth.test.ts')
     shutil.copy2(source / 'commandCodeOAuth.ts', root / 'apps/web/src/services/api/commandCodeOAuth.ts')
+    behavior_target = root / 'apps/web/behavior-tests'
+    behavior_target.mkdir(exist_ok=True)
+    for name in ['antigravityBehavior.test.ts', 'antigravity-behavior-fixtures.json']:
+        shutil.copy2(source / name, behavior_target / name)
+    shutil.copy2(source / 'vitest.behavior.config.ts', root / 'apps/web/vitest.behavior.config.ts')
 print('PASS: CPAMP native credential grid and quota detail integration' + (' compatibility check' if args.check else ' applied'))

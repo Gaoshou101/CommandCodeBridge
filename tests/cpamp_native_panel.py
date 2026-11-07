@@ -18,6 +18,7 @@ from cpa_harness import CPAHost, API
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--environment-only', action='store_true', help='Reproduce CPAMP with explicit usage data/database paths and no config.json')
+parser.add_argument('--behavior-archive', type=pathlib.Path, help='Execute the installed panel with the Antigravity browser/snapshot harness and compare it to this ZIP')
 args = parser.parse_args()
 manager_source = pathlib.Path(os.environ['CPAMP_BINARY']).resolve()
 local = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -105,6 +106,10 @@ with tempfile.TemporaryDirectory(prefix='commandcodebridge-real-cpamp-') as temp
                     f'http://127.0.0.1:{port}/management.html', '--expected', saved['panelPath']], capture_output=True, text=True)
                 assert verification.returncode == 0, verification.stdout + verification.stderr
                 assert host.call(API + '/cpamp/panel/install', {}).get('backups', []) == []
+                if args.behavior_archive:
+                    subprocess.run([os.sys.executable, str(pathlib.Path(__file__).with_name('cpamp_antigravity_behavior.py')),
+                        '--manager', str(manager_source), '--panel', saved['panelPath'], '--archive', str(args.behavior_archive.resolve()),
+                        '--scenario', 'full', '--output', str(pathlib.Path(__file__).resolve().parents[1] / 'dist/antigravity-installed')], check=True)
                 # A configured JSON panelPath also reads the file per request.
                 # Simulate an older external native page, then update in place.
                 manager_pid = process.pid

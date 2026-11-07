@@ -24,6 +24,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the locked behavior browser
+        run: |
+          python -m pip install -r tests/requirements-cpamp-behavior.txt
+          python -m playwright install --with-deps chromium
       - uses: actions/download-artifact@v4
         with:
           name: commandcodebridge-cpamp-web
@@ -64,8 +71,20 @@ jobs:
       - name: Native panel deployment against the same CPAMP source baseline
         run: |
           chmod +x dist/cpamp-manager-test/cpa-manager-plus
-          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY="$PWD/dist/cpamp-manager-test/cpa-manager-plus" python3 tests/cpamp_native_panel.py
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY="$PWD/dist/cpamp-manager-test/cpa-manager-plus" python3 tests/cpamp_native_panel.py --behavior-archive dist/cpamp-web/*_cpamp-web.zip
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api CPAMP_BINARY="$PWD/dist/cpamp-manager-test/cpa-manager-plus" python3 tests/cpamp_native_panel.py --environment-only
+      - name: Production Antigravity browser, snapshot and fault controls
+        run: |
+          python tests/cpamp_antigravity_behavior.py --manager dist/cpamp-manager-test/cpa-manager-plus --archive dist/cpamp-web/*_cpamp-web.zip
+          python tests/cpa_antigravity_forwarding.py --cpa /tmp/cpa-test/cli-proxy-api
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpamp-behavior-evidence
+          path: |
+            dist/antigravity-behavior/
+            dist/antigravity-installed/
+            dist/antigravity-forwarding.json
 
   build:
     needs: test
@@ -231,12 +250,16 @@ jobs:
           cd "$cpamp_source"
           npm ci --ignore-scripts --workspace apps/web
           npm --workspace apps/web run type-check
+          npm --workspace apps/web run test -- --config vitest.behavior.config.ts
           npm --workspace apps/web run test -- src/utils/quota/constants.test.ts src/features/accounts/components/CommandCodeQuotaCard.test.tsx src/features/accounts/components/commandCodeQuotaStore.test.ts src/features/accounts/model/commandCodeQuotaWindows.test.ts src/features/accounts/model/accountHealthEvidence.test.ts src/features/accounts/model/accountQuotaWindowDefinitions.test.ts src/features/accounts/components/QuotaWindowCard.test.tsx src/services/api/CommandCodeOAuth.test.ts src/services/api/oauth.test.ts src/features/oauth/OAuthPage.test.tsx src/features/accounts/components/accountDetail/AccountQuotaTab.test.tsx
           npm --workspace apps/web run build
           (cd apps/manager-server && go test ./internal/service/quotasnapshot ./internal/http/controller/health -run TestCommandCode -count=1)
           cd "$GITHUB_WORKSPACE"
           mkdir -p dist/cpamp-manager-test
           (cd "$cpamp_source/apps/manager-server" && go build -trimpath -o "$GITHUB_WORKSPACE/dist/cpamp-manager-test/cpa-manager-plus" ./cmd/cpa-manager-plus)
+          python -m pip install -r tests/requirements-cpamp-behavior.txt
+          python -m playwright install --with-deps chromium
+          python tests/cpamp_antigravity_mutations.py "$cpamp_source" --manager dist/cpamp-manager-test/cpa-manager-plus
           python scripts/package_cpamp.py "$cpamp_source"
           python - "$cpamp_source" <<'PY'
           import pathlib, subprocess, sys, tempfile, zipfile
@@ -247,6 +270,11 @@ jobs:
               script = pathlib.Path(temporary) / "integrations/cpamp/apply.py"
               subprocess.run([sys.executable, str(script), sys.argv[1], "--check"], check=True)
           PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpamp-mutation-evidence
+          path: dist/antigravity-mutation/
       - uses: actions/upload-artifact@v4
         with:
           name: cpamp-manager-test
