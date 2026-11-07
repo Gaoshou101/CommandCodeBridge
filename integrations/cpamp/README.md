@@ -36,6 +36,30 @@ v0.2.9 四平台插件已内嵌匹配页面，独立前端包也包含上述功�
 
 CPAMP 当前源码的额度平台列表固定为内置平台，因此仅增加插件额度接口仍不会在原生凭证页渲染 CommandCode。本适配直接在 CPAMP 的原生网格、列表显示左右两区：左侧 5h、周额度上下两排，右侧月额度与 5h 顶部对齐；保留窗口标签、剩余百分比、进度条、相对重置时间和月余额。完整重置日期可悬停查看，刷新使用右侧图标；复用面板已有的 Button 和 QuotaProgressBar。详情额度页使用原生窗口历史卡片。
 
+## Antigravity 行为回归测试
+
+除页面身份校验外，CI 还执行真实 HTTP 请求代码、生产页面浏览器操作、Manager 快照与 SQLite 恢复、UA/响应故障注入及源码版本回退测试。测试仅使用 loopback 服务和虚构凭证。完整场景与边界见[行为测试计划](../../docs/ANTIGRAVITY_BEHAVIOR_TEST_PLAN.md)。
+
+在已经应用本仓库集成的独立 CPAMP checkout 中运行请求层测试：
+
+```bash
+npm --workspace apps/web run test -- --config vitest.behavior.config.ts
+```
+
+在 CommandCodeBridge 仓库根目录运行浏览器与持久化测试；Manager 必须从 `compatibility.json` 指定的同一源码基线构建，ZIP 必须是对应生产页面：
+
+```bash
+python -m pip install -r tests/requirements-cpamp-behavior.txt
+PLAYWRIGHT_SKIP_BROWSER_GC=1 python -m playwright install chromium
+python tests/cpamp_antigravity_behavior.py --manager /path/to/cpa-manager-plus --archive /path/to/commandcodebridge_cpamp-web.zip
+python tests/cpamp_antigravity_mutations.py /path/to/CPA-Manager-Plus --manager /path/to/cpa-manager-plus
+python tests/cpa_antigravity_forwarding.py --cpa /path/to/cli-proxy-api
+```
+
+浏览器报告和截图默认写入 `dist/antigravity-behavior/`；源码回退报告在 `dist/antigravity-mutation/`。回退构建位于临时目录，不进入正式打包。`cpamp_native_panel.py --behavior-archive <ZIP>` 会在插件安装及 HTTP 页面一致性验证后，将实际安装的相同页面交给隔离 Manager 执行主行为场景。
+
+行为失败必须阻止 `cpamp-web → test → build → release` 链路。真实 Google 接口和真实账号未在这些测试中访问。
+
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。

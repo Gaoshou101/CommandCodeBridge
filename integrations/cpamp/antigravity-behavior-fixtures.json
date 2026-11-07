@@ -1,0 +1,22 @@
+{
+  "minimumHubVersion": [2, 23, 0],
+  "accounts": [
+    {"name": "antigravity-a.json", "auth_index": "ag-fixture-a", "type": "antigravity", "provider": "antigravity", "project_id": "fixture-project-a", "email": "a@example.test"},
+    {"name": "antigravity-b.json", "auth_index": "ag-fixture-b", "type": "antigravity", "provider": "antigravity", "project_id": "fixture-project-b", "email": "b@example.test"}
+  ],
+  "groups": [
+    {"displayName": "Gemini Models", "scope": "gemini", "buckets": [
+      {"bucketId": "gemini-5h", "displayName": "5 hour limit", "window": "5h", "remainingFraction": 0.8, "durationSeconds": 18000, "resetOffsetSeconds": 7200},
+      {"bucketId": "gemini-weekly", "displayName": "Weekly limit", "window": "weekly", "remainingFraction": 0.6, "durationSeconds": 604800, "resetOffsetSeconds": 172800}
+    ]},
+    {"displayName": "Claude and GPT models", "scope": "claude_gpt", "buckets": [
+      {"bucketId": "claude-5h", "displayName": "5 hour limit", "window": "5h", "remainingFraction": 0.4, "durationSeconds": 18000, "resetOffsetSeconds": 10800},
+      {"bucketId": "claude-weekly", "displayName": "Weekly limit", "window": "weekly", "remainingFraction": 0.2, "durationSeconds": 604800, "resetOffsetSeconds": 259200}
+    ]}
+  ],
+  "models": {
+    "gemini-fixture": {"displayName": "Gemini Fixture", "apiProvider": "API_PROVIDER_GOOGLE_GEMINI", "quotaInfo": {"remainingFraction": 0.8}},
+    "claude-fixture": {"displayName": "Claude Fixture", "apiProvider": "API_PROVIDER_ANTHROPIC_VERTEX", "quotaInfo": {"remainingFraction": 0.4}}
+  },
+  "subscription": {"currentTier": {"id": "g1-pro-tier", "name": "Antigravity Pro"}}
+}
