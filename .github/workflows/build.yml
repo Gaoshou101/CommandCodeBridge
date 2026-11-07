@@ -40,6 +40,8 @@ jobs:
       - run: go test -race ./...
       - run: go vet ./...
       - run: node --test tests/*.test.cjs
+      - name: Console sources stay formatted
+        run: npx --yes prettier@3.7.4 --check internal/bridge/ui/console.js internal/bridge/ui/console.css
       - name: Native host integration (CPA v8.0.23)
         env:
           GH_TOKEN: ${{ github.token }}

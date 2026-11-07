@@ -4,6 +4,12 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
 const script = fs.readFileSync(path.join(__dirname, '../internal/bridge/ui/console.js'), 'utf8');
+// Slice the formatted console source between two unique markers; fail loudly if either moves.
+function between(text, start, end) {
+  const from = text.indexOf(start), to = text.indexOf(end, from);
+  assert.ok(from >= 0 && to > from && text.indexOf(start, from + 1) < 0, `console.js markers not found: ${start} … ${end}`);
+  return text.slice(from, to);
+}
 function fixture(api = async () => ({})) {
   const nodes = new Map();
   const context = {
@@ -13,7 +19,7 @@ function fixture(api = async () => ({})) {
     $: id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); },
   };
   vm.createContext(context);
-  vm.runInContext(script.slice(script.indexOf('const diagnosticStatus='), script.indexOf("$('runDiagnostics').onclick")), context);
+  vm.runInContext(between(script, 'const diagnosticStatus =', "$('runDiagnostics').onclick"), context);
   return context;
 }
 function report(label) {
@@ -56,7 +62,7 @@ test('rejected management access immediately clears rendered diagnostics', async
     fetch: async () => ({ok: false, status: 401, text: async () => '{"error":"unauthorized"}'}),
     apiURL: value => value, AbortSignal, openDialog: () => {},
   });
-  vm.runInContext(script.slice(script.indexOf('async function api('), script.indexOf('async function confirmed(')), context);
+  vm.runInContext(between(script, 'async function api(', 'async function confirmed('), context);
   await assert.rejects(context.api('/diagnostics'), /unauthorized/);
   assert.equal(context.state.authenticated, false);
   assert.equal(context.$('diagnosticResults').textContent, '登录后重新诊断');

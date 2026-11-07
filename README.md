@@ -128,6 +128,8 @@ CPAMP 套餐名统一显示 **Go、GOAT、Pro、Max**。月额度与 5h 顶部�
 
 原生插件构建需要 **Go ≥1.26、CGO 和目标平台 C 编译器**。发行构建先生成 pinned CPAMP 页面，再内嵌到四个平台的动态库。
 
+控制台脚本与样式（`internal/bridge/ui/console.js`、`console.css`）以格式化后的源码原样内嵌；修改后运行 `npx prettier@3.7.4 --write internal/bridge/ui/console.js internal/bridge/ui/console.css`（配置见 `.prettierrc.json`），CI 会检查格式。
+
 GitHub Actions 运行 Go race/vet、前端测试与类型检查、CPA 原生协议及异常恢复联测、CPAMP 页面安装与热更新联测，并校验四平台插件和独立前端包的来源、校验值及内嵌页面一致性。具体步骤与验证边界见以下文档。
 
 | 文档 | 内容 |
