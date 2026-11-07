@@ -8,12 +8,13 @@
 2. 运行数据文件改为紧凑 JSON，结构不变，旧版本可直接读取；降级不需要迁移。
 3. 首字节超时与流空闲超时默认关闭。需要时在「设置 → 请求策略」启用，取值宜宽松，详见下方常见问题。
 4. 页面功能未变，但页面带插件版本标识，仍按下节步骤更新 CPAMP 页面并强刷浏览器。
+5. 从 v0.2.11 及更早版本升级、且在 CPA v8.0.23 这类会把后缀原样交给插件的宿主上用过 `model(high)` 等写法：插件热升级**不会**清除宿主已记录的模型冷却。凭证虽显示恢复 active，请求仍返回 503 `auth_unavailable`；重启一次 CPA 即恢复（2026-11-08 以 v0.2.11 → v0.2.13 实测）。v8.0.59 由宿主剥离后缀，不产生该冷却。
 
 ## v0.2.12：count_tokens 与思考后缀兼容
 
 1. 更新插件至 v0.2.12，确认实际运行版本；配置无需修改。
 2. 页面功能未变，但页面带插件版本标识，仍按下节步骤在「设置 → CPAMP 原生面板」更新页面并强刷浏览器。
-3. 此前因 `count_tokens` 或带后缀模型名被冷却的凭证会显示 unavailable（v8.0.23 实测约 12 小时后重试）；重启 CPA 可立即恢复。插件热升级是否清除宿主冷却未验证。
+3. 此前因 `count_tokens` 或带后缀模型名被冷却的凭证会显示 unavailable（v8.0.23 实测约 12 小时后重试）；重启 CPA 可立即恢复。插件热升级不会清除该冷却（见上方 v0.2.13 第 5 条）。
 
 ## v0.2.11：更新 Antigravity 面板身份
 
@@ -198,7 +199,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 | 无法加载库 | CPA 是否含插件支持；CPU/系统/运行库是否匹配；文件是否可读 |
 | 模型可见但返回 403 | 目录不保证套餐权限，检查 `MODEL_NOT_IN_PLAN` |
 | 接口直连失败或超时 | 确认 CPA 全局代理；插件不继承 Windows 系统代理 |
-| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭，长推理模型在真实上游中的首字节与段间间隔尚未实测，取值宜宽松 |
+| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭。真实上游免费模型的短请求首字节约 2～3.5 秒；长推理与大上下文模型尚未实测，取值宜宽松 |
 | 用量缺失 | 查看 `unavailable` / `status`；查询失败保留旧值 |
 | 日志写入失败 | 检查 data_dir 的磁盘空间、权限及 `storage_error` |
 | 重启后设置未按 YAML 改变 | 已存 settings.json 优先；采用明确的迁移方案 |

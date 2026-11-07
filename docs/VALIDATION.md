@@ -1,5 +1,35 @@
 # 开发验证记录
 
+## v0.2.13 发版记录与真实上游验收（2026-11-08）
+
+用户已确认合并 PR #16 并发版，并提供真实凭证用于验收。下方“未发布源码”一节保留为当轮验证时的状态。本次未部署或访问任何服务器。
+
+### 发版
+
+- PR #16 以 squash 合并为 `dfd0af2d3f237e3b9beb0e9b9ebe54a5ca2f24ec`，合并提交的源码树与 CI 全绿的分支头 `791b055` 一致。附注标签 `v0.2.13` 指向该提交。
+- [标签 CI](https://github.com/Gaoshou101/CommandCodeBridge/actions/runs/42388166314) 9 项任务全部通过，含两个 Linux 架构在 glibc 2.28 用户态内的加载与宿主联测、最新 CPA 候选 v8.0.59 联测及发布。`main` 推送 CI 同样通过。
+- 公开 Release 已设为 Latest，共 **11 个资产**。匿名下载全部资产，大小与 SHA-256 逐个匹配 GitHub 记录的 digest；`scripts/checksums.py --include-cpamp --max-glibc 2.28` 通过，重新生成的清单与发布的 `checksums.txt` 逐行一致。四平台包与独立页面包版本均为 0.2.13、来源提交均为 `dfd0af2`、兼容基线均为 CPA v8.0.23。
+- 发布的 Linux 包 `BUILD.json`：amd64 `glibc_minimum` 2.28／`glibc_symbol_version_max` 2.3.2，arm64 为 2.28／2.17，与 `objdump -T` 实测一致。发布的 amd64 `.so` 在本机 manylinux_2_28 容器（glibc 2.28）中 `dlopen` 成功，并以 Linux CPA v8.0.23 通过 `cpa_e2e.py`、`cpa_count_tokens.py`、`cpa_thinking_suffix.py`。
+- 发布的 darwin dylib 为 `LC_BUILD_VERSION` minos 14.0／SDK 15.5，与 v0.2.12 相同。
+- `tests/cpa_store_install.py` 在隔离 Windows CPA **v8.0.23** 与 **v8.0.59** 中均通过：匿名公开源发现、选择 v0.2.13 Release、校验安装、重启加载并报告 0.2.13。
+
+### 真实上游验收（正式 Windows 包）
+
+凭证仅保存在仓库外的临时文件（仅当前用户可读），验收结束后已删除；报告与运行数据中经检查不含该 key。账户套餐 `individual-goat`，公开目录 96 个模型。为不消耗额度，生成请求只使用目录中的免费模型 `reflection/beam:free`，共 **10 次**真实请求、约 1.7k tokens。
+
+- `tests/commandcode_live.py` 只读检查通过（身份、额度 2 个窗口、目录刷新，key 不出现在凭证列表）。
+- 同脚本 `--generate --tools` 在 CPA v8.0.23 上 **6/6 通过**：Chat／Responses 的流式与非流式、工具调用与结果回传；共 596 tokens，插件统计与 CPA 用量队列一致。
+- **思考后缀**：在 v8.0.23 与 v8.0.59 上各发送 `beam:free(low)`、`beam:free(high)` 流式请求，均为 200，插件日志的 `reasoning_from`／`reasoning_to` 分别为 low／high，请求后凭证无 unavailable。上游返回的推理 tokens 为 174／231（v8.0.23）与 232／188（v8.0.59），与等级不成单调关系：插件按等级转发已确认，**该免费模型是否按等级调整推理深度无法据此判断**，付费推理模型未测。
+- **超时参考**：上述 4 次短问答流式请求，插件记录的首字节 1.8～3.4 秒，客户端观测的最大段间间隔 0.05～0.52 秒。仅代表免费模型的短请求，不足以确定长推理或大上下文模型的合适阈值，因此两项超时保持默认关闭。
+- count_tokens 的真实客户端行为（如 Claude Code 收到 404 后的处理）仍未验证：插件对该路径不访问上游，需要真实客户端联测。
+
+### 热升级与宿主冷却（模拟上游）
+
+使用 v0.2.11 正式 Windows 包（SHA-256 与包内清单一致）与 v0.2.13 正式包，在同一 CPA 进程内复现：
+
+- **CPA v8.0.23**：v0.2.11 下 `cool-model(high)` 返回 404，随后不带后缀的请求返回 503，凭证显示 unavailable、约 12 小时后重试。热升级到 v0.2.13 后凭证显示恢复 active，但带与不带后缀的请求仍返回 503 `auth_unavailable`（错误信息保留升级前的上游错误）；重启 CPA 后立即恢复 200。结论：**插件热升级不清除宿主已记录的模型冷却，需要重启 CPA**。已写入 DEPLOYMENT 与发布说明。
+- **CPA v8.0.59**：宿主剥离后缀，v0.2.11 下后缀请求即为 200，不产生冷却；升级前后均为 200。
+
 ## v0.2.13 glibc 下限、写盘节流与卡顿超时（2026-11-07，未发布源码）
 
 本轮只使用本地模拟上游，未进行真实模型生成，未访问或修改任何部署服务器。CPA 发布门槛仍为 v8.0.23；`compatibility.json` 未改动。包含 PR #14（Antigravity 额度回归纳入发布门槛）与 PR #16。
@@ -32,7 +62,7 @@
 
 ### 待验证
 
-- 真实上游下两项超时的合适取值（默认关闭）、思考后缀等级效果与 count_tokens 客户端行为；插件热升级是否清除宿主已记录的冷却。
+- 真实上游下两项超时的合适取值（默认关闭）、思考后缀等级效果与 count_tokens 客户端行为；插件热升级是否清除宿主已记录的冷却。——发版后已部分验证，见上方发版记录。
 - 真实 RHEL/AlmaLinux 8 等 glibc 2.28 主机上的部署（目前仅容器与 CI 验证）。
 
 ## v0.2.12 发版记录（2026-11-07）
