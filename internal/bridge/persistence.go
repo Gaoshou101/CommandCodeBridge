@@ -8,6 +8,33 @@ import (
 
 const statisticsFlushInterval = 250 * time.Millisecond
 
+// Under sustained traffic each runtime file is rewritten in full on every
+// tick, so a large statistics or request log would cost several megabytes per
+// second of disk writes. Consecutive rewrites of one file are spaced so that
+// its sustained write rate stays near runtimeWriteBytesPerSecond. Small files
+// keep the 250ms window, the first change after a quiet period is written on
+// the next tick, and shutdown always flushes every pending file.
+const (
+	runtimeWriteBytesPerSecond = 1 << 20
+	runtimeWriteMaxInterval    = 10 * time.Second
+)
+
+// runtimeWriteInterval is the minimum spacing between rewrites of a runtime
+// file whose last successful snapshot was size bytes.
+func runtimeWriteInterval(size int) time.Duration {
+	interval := time.Duration(int64(size) * int64(time.Second) / runtimeWriteBytesPerSecond)
+	switch {
+	case interval < statisticsFlushInterval:
+		return statisticsFlushInterval
+	case interval > runtimeWriteMaxInterval:
+		return runtimeWriteMaxInterval
+	default:
+		return interval
+	}
+}
+
+var runtimeFileNames = map[runtimeFiles]string{dirtyLogs: "requests.json", dirtyStatistics: "statistics.json", dirtyUsage: "usage.json"}
+
 type runtimeFiles uint8
 
 const (
@@ -48,7 +75,7 @@ func (s *Service) startPersistenceLocked() {
 		for {
 			select {
 			case <-ticker.C:
-				s.flushStatistics()
+				s.flushRuntimeFiles(false)
 			case <-stop:
 				s.flushStatistics()
 				return
@@ -57,10 +84,17 @@ func (s *Service) startPersistenceLocked() {
 	}()
 }
 
+// flushStatistics writes every pending runtime file immediately. It is used at
+// shutdown and by tests; the background worker uses the rate-limited path.
+func (s *Service) flushStatistics() {
+	s.flushRuntimeFiles(true)
+}
+
 // persistMu serializes disk snapshots with reset so an older in-flight snapshot
 // cannot overwrite a freshly cleared counter. Serialization and IO run without
 // the service lock; new requests and management reads can proceed concurrently.
-func (s *Service) flushStatistics() {
+// Unless force is set, files rewritten too recently stay pending for a later tick.
+func (s *Service) flushRuntimeFiles(force bool) {
 	s.persistMu.Lock()
 	defer s.persistMu.Unlock()
 	s.mu.Lock()
@@ -68,8 +102,16 @@ func (s *Service) flushStatistics() {
 		s.mu.Unlock()
 		return
 	}
-	s.compactStatisticsLocked(time.Now().UTC())
+	now := time.Now()
+	s.compactStatisticsLocked(now.UTC())
 	dirty := s.persistDirty
+	if !force {
+		for flag, name := range runtimeFileNames {
+			if dirty&flag != 0 && now.Sub(s.persistLastWrite[name]) < runtimeWriteInterval(s.persistLastSize[name]) {
+				dirty &^= flag
+			}
+		}
+	}
 	if dirty == 0 {
 		s.mu.Unlock()
 		return
@@ -95,12 +137,12 @@ func (s *Service) flushStatistics() {
 		values["usage.json"] = usage
 	}
 	dir := s.cfg.DataDir
-	s.persistDirty = 0
+	s.persistDirty &^= dirty
 	s.persistWriting = true
 	s.mu.Unlock()
 	failed := runtimeFiles(0)
 	for name, value := range values {
-		err := s.writeRuntimeSnapshot(dir, name, value, false)
+		size, err := s.writeRuntimeSnapshot(dir, name, value, false)
 		s.mu.Lock()
 		if s.persistErrors == nil {
 			s.persistErrors = map[string]bool{}
@@ -108,12 +150,18 @@ func (s *Service) flushStatistics() {
 		if s.persistWrites == nil {
 			s.persistWrites = map[string]uint64{}
 		}
+		if s.persistLastWrite == nil {
+			s.persistLastWrite = map[string]time.Time{}
+			s.persistLastSize = map[string]int{}
+		}
 		if err != nil {
 			s.persistErrors[name] = true
 			failed |= map[string]runtimeFiles{"requests.json": dirtyLogs, "statistics.json": dirtyStatistics, "usage.json": dirtyUsage}[name]
 		} else {
 			delete(s.persistErrors, name)
 			s.persistWrites[name]++
+			s.persistLastWrite[name] = time.Now()
+			s.persistLastSize[name] = size
 		}
 		s.mu.Unlock()
 	}

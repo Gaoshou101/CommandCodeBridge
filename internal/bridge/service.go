@@ -41,6 +41,8 @@ type Service struct {
 	checkpointAt                    map[string]time.Time
 	persistErrors                   map[string]bool
 	persistWrites                   map[string]uint64
+	persistLastWrite                map[string]time.Time
+	persistLastSize                 map[string]int
 	storageWarnings                 []runtimeRecovery
 	nextCompaction                  time.Time
 	persistStop, persistDone        chan struct{}
@@ -80,15 +82,20 @@ func id() string {
 	return hex.EncodeToString(b)
 }
 func atomicJSON(path string, v any) error {
-	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
-		return e
-	}
 	b, e := json.MarshalIndent(v, "", "  ")
 	if e != nil {
 		return e
 	}
+	return atomicWrite(path, b)
+}
+
+// atomicWrite replaces path through a private temporary file and rename.
+func atomicWrite(path string, b []byte) error {
+	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+		return e
+	}
 	tmp := path + ".tmp-" + id()
-	if e = os.WriteFile(tmp, b, 0600); e != nil {
+	if e := os.WriteFile(tmp, b, 0600); e != nil {
 		return e
 	}
 	defer os.Remove(tmp)

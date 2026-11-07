@@ -4,6 +4,7 @@
 
 ### Changed
 
+- 运行数据文件（`requests.json`、`statistics.json`、`usage.json` 及检查点）改为紧凑 JSON，结构不变；同一文件持续变更时，两次重写的间隔按上次写入大小折算为约 1 MiB/s（最长 10 秒）。小文件仍为 250ms，正常卸载立即写入全部待写文件。合成测量中，90 天 × 2 模型的统计文件从 9.8 MB 缩小到 7.5 MB，持续流量下写入从约 39 MB/s 降至约 1 MB/s；1,000 条请求记录从约 3.9 MB/s 降至约 1 MB/s。代价是强制结束进程时大文件可能丢失最多约 10 秒的变更。
 - Linux 动态库改在固定摘要的 manylinux_2_28 容器中构建，最低 glibc 从 2.34 降至 **2.28**（RHEL/AlmaLinux 8、Debian 10、Ubuntu 20.04 及更新版本）。CI 在 glibc 2.28 用户态中加载动态库，并运行 CPA v8.0.23 宿主联测；构建与发布校验会拒绝要求更高 glibc 的 Linux 包。`BUILD.json` 的 `glibc_minimum` 记录受支持的最低版本，`glibc_symbol_version_max` 记录符号版本的实际上限。
 
 ## [0.2.12] - 2026-11-07
