@@ -1,5 +1,16 @@
 # 开发验证记录
 
+## v0.2.12 发版记录（2026-11-07）
+
+用户已确认合并 PR #15 并发版。下方“未发布源码”一节保留为当轮验证时的状态；真实上游验收仍未完成，本次未部署或访问任何服务器。
+
+- PR #15 以 squash 合并为 `257b070cecdb5cc3819591942aac15280600cf9c`，合并提交的源码树与 CI 全绿的分支头 `ab3d07e` 一致。附注标签 `v0.2.12` 指向该提交。
+- [标签 CI](https://github.com/Gaoshou101/CommandCodeBridge/actions/runs/42357728404) 9 项任务全部通过：CPA v8.0.23 基线、四平台构建与宿主联测（含新增 count_tokens／思考后缀联测，macOS 在 `macos-15` 构建）、CPAMP、最新 CPA 候选 v8.0.59 全套 8 项联测、统一校验及发布。`main` 推送 CI 同样通过。
+- 公开 Release 已设为 Latest，共 **11 个资产**。匿名下载全部资产，大小与 SHA-256 逐个匹配 GitHub 记录的 digest；`scripts/checksums.py --include-cpamp` 通过，重新生成的清单与发布的 `checksums.txt` 逐行一致（Windows 本地写入为 CRLF，仅按行比较）。四平台包与独立页面包版本均为 0.2.12、来源提交均为 `257b070`、兼容基线均为 CPA v8.0.23，内嵌页面摘要一致。
+- 发布的 darwin dylib 为 `LC_BUILD_VERSION` minos 14.0／SDK 15.5，最低系统与 v0.2.11 相同。
+- `main` 的 `registry.json` 已为 0.2.12。`tests/cpa_store_install.py` 在隔离 Windows CPA **v8.0.23** 与 **v8.0.59** 中均通过：匿名公开源发现、选择 v0.2.12 Release、校验安装、重启加载并报告 0.2.12。
+- 仍待验证：真实上游下的思考后缀等级效果与 count_tokens 客户端行为；插件热升级是否清除宿主已记录的冷却。
+
 ## v0.2.12 CPA 兼容修复（2026-11-07，未发布源码）
 
 本轮只使用本地模拟上游，未进行真实模型生成，未访问或修改任何部署服务器。CPA 发布门槛仍为 v8.0.23；`compatibility.json` 未改动。
@@ -25,7 +36,7 @@
 
 ### 待验证
 
-- 四平台 CI（尤其 `macos-15` 与 Linux ARM64 上的新增联测）。
+- 四平台 CI（尤其 `macos-15` 与 Linux ARM64 上的新增联测）——已在 PR 与标签 CI 中通过，见上方发版记录。
 - 真实上游下的思考后缀等级效果与 count_tokens 客户端行为。
 
 ## v0.2.10 发版记录（2026-10-18）
