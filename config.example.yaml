@@ -14,6 +14,10 @@ plugins:
       cpamp_panel_path: ""
       # Browser OAuth uses a local POST receiver and CPAMP result submission.
       timeout_seconds: 600
+      # Optional stall guards inside timeout_seconds (0 = off, otherwise 5-1800):
+      # time to the first upstream response data, and the longest gap between chunks.
+      first_byte_timeout_seconds: 0
+      stream_idle_timeout_seconds: 0
       usage_refresh_seconds: 60
       log_retention: 1000
       max_response_bytes: 16777216

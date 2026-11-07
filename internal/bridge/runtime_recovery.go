@@ -151,18 +151,24 @@ func decodeRuntime(raw []byte, target any) bool {
 
 // Checkpoints are refreshed at most once a minute rather than doubling every
 // request-log write. Forced checkpoints are used when explicitly resetting.
-func (s *Service) writeRuntimeSnapshot(dir, name string, value any, force bool) error {
-	if err := atomicJSON(filepath.Join(dir, name), value); err != nil {
-		return err
+// Runtime snapshots are compact JSON with the same structure as before; the
+// encoded size is returned so the writer can pace rewrites of large files.
+func (s *Service) writeRuntimeSnapshot(dir, name string, value any, force bool) (int, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return 0, err
+	}
+	if err := atomicWrite(filepath.Join(dir, name), data); err != nil {
+		return 0, err
 	}
 	if s.checkpointAt == nil {
 		s.checkpointAt = map[string]time.Time{}
 	}
 	if force || time.Since(s.checkpointAt[name]) >= time.Minute {
-		if err := atomicJSON(filepath.Join(dir, name+".last-good"), value); err != nil {
-			return err
+		if err := atomicWrite(filepath.Join(dir, name+".last-good"), data); err != nil {
+			return 0, err
 		}
 		s.checkpointAt[name] = time.Now()
 	}
-	return nil
+	return len(data), nil
 }

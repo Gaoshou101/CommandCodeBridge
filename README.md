@@ -12,7 +12,11 @@
 - **原生额度窗口**：在 CPAMP 列表、卡片和详情查看 5h、周、月额度，查询窗口请求统计、预测和周期快照。
 - **请求记录**：查看凭证健康度、tokens、缓存用量、预估花费、首字耗时、输出速率及模型统计；支持明暗主题和手机布局。
 
-当前版本 **v0.2.12**。插件调用官方 Provider API；Go 订阅的 `/alpha/generate` 路径和固定上游 provider 模式不在支持范围内。账户用量通过官方 `/alpha/...` 查询接口读取，模型权限以实际套餐为准。
+当前版本 **v0.2.13**。插件调用官方 Provider API；Go 订阅的 `/alpha/generate` 路径和固定上游 provider 模式不在支持范围内。账户用量通过官方 `/alpha/...` 查询接口读取，模型权限以实际套餐为准。
+
+### v0.2.13 更新
+
+Linux 包的 glibc 要求从 2.34 降至 **2.28**（RHEL/AlmaLinux 8、Debian 10、Ubuntu 20.04 起）；运行数据改为紧凑 JSON，并限制大文件的持续重写频率，持续流量下统计文件写盘约降为原来的 1/37；新增可选的首字节超时与流空闲超时（默认关闭，在「设置 → 请求策略」启用）。
 
 ### v0.2.12 更新
 
@@ -43,7 +47,7 @@ plugins:
     - https://raw.githubusercontent.com/Gaoshou101/CommandCodeBridge/main/registry.json
 ```
 
-保存并重载配置，在 CPAMP「插件商店」找到 **CommandCodeBridge**，选择 Latest 或 **v0.2.12** 安装。支持热升级的宿主会下载匹配平台的 ZIP、验证校验值并切换版本；安装后检查插件控制台显示的运行版本。
+保存并重载配置，在 CPAMP「插件商店」找到 **CommandCodeBridge**，选择 Latest 或 **v0.2.13** 安装。支持热升级的宿主会下载匹配平台的 ZIP、验证校验值并切换版本；安装后检查插件控制台显示的运行版本。
 
 也可从 [Releases](https://github.com/Gaoshou101/CommandCodeBridge/releases/latest) 手动下载 ZIP 和 `checksums.txt`。按 **CPA 所在服务器**选择动态库：
 
@@ -54,7 +58,7 @@ plugins:
 | Windows x64 | `_windows_amd64.zip` | `commandcodebridge.dll` |
 | macOS Apple Silicon | `_darwin_arm64.zip` | `commandcodebridge.dylib` |
 
-Linux 发布包要求 glibc ≥2.34；Alpine/musl 需自行构建。手动安装时核验校验值，将动态库放入实际 `plugins.dir`，合并 [config.example.yaml](./config.example.yaml)，按宿主的加载方式启用插件。完整步骤见[部署说明](./docs/DEPLOYMENT.md)。
+Linux 发布包要求 glibc ≥2.28（v0.2.12 及更早为 ≥2.34）；Alpine/musl 需自行构建。手动安装时核验校验值，将动态库放入实际 `plugins.dir`，合并 [config.example.yaml](./config.example.yaml)，按宿主的加载方式启用插件。完整步骤见[部署说明](./docs/DEPLOYMENT.md)。
 
 ## 快速开始
 
@@ -69,7 +73,7 @@ Linux 发布包要求 glibc ≥2.34；Alpine/musl 需自行构建。手动安装
 
 ## 安装或更新原生面板
 
-**升级插件后还要更新 CPAMP 页面**，才能使用新版凭证布局。v0.2.12 动态库已内嵌匹配页面。
+**升级插件后还要更新 CPAMP 页面**，才能使用新版凭证布局。v0.2.13 动态库已内嵌匹配页面。
 
 CPA 与 Manager Server 在同一主机直接运行时：
 
@@ -84,7 +88,7 @@ CPA 与 Manager Server 在同一主机直接运行时：
 | 首次启用外部页面，或更改 Manager Server 的页面路径 | 重启 Manager Server 一次 |
 | 迁移插件数据目录，或旧宿主不支持动态库热升级 | 安排相应服务重启 |
 
-Manager Server 在另一台主机或独立容器中时，在其运行环境安装 `commandcodebridge_0.2.12_cpamp-web.zip` 内的 `management.html`，通过 `PANEL_PATH` 或 `panelPath` 托管。面板源码基线见 [compatibility.json](./internal/bridge/compatibility.json) 的 `cpamp_source_commit`；不同版本应在匹配源码上应用适配。
+Manager Server 在另一台主机或独立容器中时，在其运行环境安装 `commandcodebridge_0.2.13_cpamp-web.zip` 内的 `management.html`，通过 `PANEL_PATH` 或 `panelPath` 托管。面板源码基线见 [compatibility.json](./internal/bridge/compatibility.json) 的 `cpamp_source_commit`；不同版本应在匹配源码上应用适配。
 
 **完整周期快照另需 Manager Server 接受 `commandcode` 平台。** 前端包附带适配脚本、服务器名单补丁和测试；按现有 Manager Server 的同一源码版本重建并部署。仅更新插件和页面不能替代这个服务器改动。[原生集成说明](./integrations/cpamp/README.md)包含构建、HTTP 生效核验和回滚步骤。
 

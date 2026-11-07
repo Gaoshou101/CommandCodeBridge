@@ -1,5 +1,40 @@
 # 开发验证记录
 
+## v0.2.13 glibc 下限、写盘节流与卡顿超时（2026-11-07，未发布源码）
+
+本轮只使用本地模拟上游，未进行真实模型生成，未访问或修改任何部署服务器。CPA 发布门槛仍为 v8.0.23；`compatibility.json` 未改动。包含 PR #14（Antigravity 额度回归纳入发布门槛）与 PR #16。
+
+### glibc 下限
+
+- v0.2.12 的 Linux 动态库在 runner 自带的 glibc 上构建：amd64 与 arm64 发布包 `objdump -T` 的最高符号版本均为 **GLIBC_2.34**（另含 2.32），而固定的 CPA v8.0.23 Linux 版本身只需 glibc 2.3.2，因此插件把 CPA 原本支持的 glibc 2.28–2.33 主机（如 RHEL/AlmaLinux 8、Debian 11）挡在外面。
+- Linux 改在按 digest 固定的 `manylinux_2_28` 镜像（`2026.11.06-1`）中构建。新库 amd64 最高符号版本为 GLIBC_2.3.2，arm64 为 GLIBC_2.17；构建步骤在超过 2.28 时失败，`BUILD.json` 记录 `glibc_minimum: "2.28"` 与实际 `glibc_symbol_version_max`，`checksums.py --max-glibc 2.28` 在两处发布校验中拒绝超标的包（`test_cpamp_panel_validation.py` 新增拒绝用例）。
+- 本机 manylinux_2_28 容器（glibc 2.28）中运行 Linux CPA v8.0.23：v0.2.12 动态库 `dlopen` 失败（缺 GLIBC_2.34），新库加载成功，并通过 `cpa_e2e.py`、`cpa_count_tokens.py`、`cpa_thinking_suffix.py`。CI 新增 “Load and run on glibc 2.28” 步骤，amd64 与 arm64 各在 glibc 2.28 用户态内完整运行上述三项；rebase 前 PR #16 的 CI（run 42362813526、42371142936）全部通过。
+
+### 写盘节流
+
+本机合成测量（90 天 × 2 模型的用量桶，共 21,768 个）：
+
+- 用量数据缩进 JSON 为 9,823,672 B，改为紧凑 JSON 后为 7,450,959 B，单次编码约 24 ms。
+- 持续请求时，旧逻辑每次变更都重写整个文件，折合约 39.29 MB/s；新逻辑按文件大小把重写间隔限制在 250 ms～10 s（按 1 MiB/s 折算），该规模下间隔约 7.1 s、约 1.05 MB/s，约降为 1/37.5。
+- 1,000 条最近请求记录从 988,002 B 降为 788,001 B，持续写入从约 3.92 MB/s 降为约 1.05 MB/s。
+- 插件关闭时仍强制立即写出全部待写文件（`flushRuntimeFiles(true)`），写入仍为原子替换；热升级联测确认记账数据在升级后保留。`persistence_rate_test.go` 覆盖间隔计算、大文件节流与紧凑 JSON。
+
+### 首字节与流空闲超时
+
+- 新增 `first_byte_timeout_seconds` 与 `stream_idle_timeout_seconds`，默认 0（关闭，保持旧行为），启用时取值 5～1800 秒；超时分别以 504 `upstream_first_byte_timeout`／`upstream_stream_idle_timeout` 结束并记入失败计数。
+- `upstream_timeouts_test.go` 5 项通过。`cpa_reliability.py` 新增“上游先回首字节后停止输出”的故障用例：使用 v0.2.12 动态库时因新设置被拒绝（400）而失败，使用新库通过。
+- 浏览器实测设置页可保存两个字段并回读 90／120；`config.example.yaml` 已补充说明。
+
+### 自动化与宿主联测
+
+- Windows Go 1.26 `go vet ./internal/... ./cmd/...`、`gofmt -l` 与 `go test ./internal/... ./cmd/... -count=1` 通过；Node **31 项**通过；`test_cpamp_panel_validation.py` 在 WSL 下 6 项通过。
+- Windows amd64 动态库（版本 0.2.13，WSL 交叉编译，晚于最后一次源码修改）在实际 Windows CPA **v8.0.23** 与 **v8.0.59** 上各运行 9 项，共 **18/18 通过**：`cpa_e2e.py`、`cpa_native_management.py`、`cpa_reliability.py`、`cpa_diagnostics.py`、`cpa_round2.py`、`cpa_count_tokens.py`、`cpa_thinking_suffix.py`、`cpa_hot_reload.py`，以及以 v0.2.12 正式 Windows 包为前一版本的 `cpa_hot_reload.py --previous-archive`（同一 CPA 进程内 0.2.12 → 0.2.13）。CI 热升级联测的前一版本同步改为 v0.2.12。
+
+### 待验证
+
+- 真实上游下两项超时的合适取值（默认关闭）、思考后缀等级效果与 count_tokens 客户端行为；插件热升级是否清除宿主已记录的冷却。
+- 真实 RHEL/AlmaLinux 8 等 glibc 2.28 主机上的部署（目前仅容器与 CI 验证）。
+
 ## v0.2.12 发版记录（2026-11-07）
 
 用户已确认合并 PR #15 并发版。下方“未发布源码”一节保留为当轮验证时的状态；真实上游验收仍未完成，本次未部署或访问任何服务器。

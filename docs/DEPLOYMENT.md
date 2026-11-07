@@ -1,6 +1,13 @@
 # CPAMP 部署、升级与回滚
 
-本文说明 CommandCodeBridge v0.2.12 的安装、页面更新与回滚。路径应以实际运行环境为准；历史排查中的路径仅用于说明当时的问题。
+本文说明 CommandCodeBridge v0.2.13 的安装、页面更新与回滚。路径应以实际运行环境为准；历史排查中的路径仅用于说明当时的问题。
+
+## v0.2.13：glibc 2.28、写盘与超时保护
+
+1. 更新插件至 v0.2.13，确认实际运行版本；配置无需修改。Linux 主机只需 glibc ≥2.28，此前因 glibc 过低无法加载的主机（如 RHEL/AlmaLinux 8、Debian 10）可以直接安装。
+2. 运行数据文件改为紧凑 JSON，结构不变，旧版本可直接读取；降级不需要迁移。
+3. 首字节超时与流空闲超时默认关闭。需要时在「设置 → 请求策略」启用，取值宜宽松，详见下方常见问题。
+4. 页面功能未变，但页面带插件版本标识，仍按下节步骤更新 CPAMP 页面并强刷浏览器。
 
 ## v0.2.12：count_tokens 与思考后缀兼容
 
@@ -35,7 +42,7 @@ v0.2.8 的四平台插件内嵌新版 CPAMP 页面，支持官方套餐月限额
 
 | 操作 | 生效方式 |
 | --- | --- |
-| 控制台修改超时、日志保留、用量刷新、响应大小、ZDR、模型或面板探测路径 | 保存后即时生效，不重启 CPA |
+| 控制台修改超时（含首字节与流空闲超时）、日志保留、用量刷新、响应大小、ZDR、模型或面板探测路径 | 保存后即时生效，不重启 CPA |
 | CPA 配置页修改插件的 CPAMP 路径 | 宿主重载调用 `plugin.reconfigure`；显式非空路径覆盖旧保存值 |
 | 更新已启用的外部原生面板 | 点击「更新原生面板」，原路径原子替换；强刷浏览器，不重启 Manager Server |
 | 通过支持热升级的 CPA 插件商店升级动态库 | 宿主选择新的版本化文件并切换插件；确认运行版本，无需重启 CPA |
@@ -138,12 +145,12 @@ GitHub 仓库首页用于浏览源码；在“插件源”输入框应填写上�
 
 | 宿主 | 安装包后缀 | 动态库 | 要求 |
 | --- | --- | --- | --- |
-| Linux x64 | `_linux_amd64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
-| Linux ARM64 | `_linux_arm64.zip` | `commandcodebridge.so` | glibc ≥2.34 |
+| Linux x64 | `_linux_amd64.zip` | `commandcodebridge.so` | glibc ≥2.28 |
+| Linux ARM64 | `_linux_arm64.zip` | `commandcodebridge.so` | glibc ≥2.28 |
 | Windows x64 | `_windows_amd64.zip` | `commandcodebridge.dll` | 64 位 CPA |
 | macOS Apple Silicon | `_darwin_arm64.zip` | `commandcodebridge.dylib` | ARM64 CPA |
 
-以上均已在对应平台使用 CPA v8.0.23 运行模拟集成与异常恢复测试。Linux Alpine/musl 需另外构建。
+以上均已在对应平台使用 CPA v8.0.23 运行模拟集成与异常恢复测试；Linux x64／ARM64 另在 glibc 2.28 用户态中加载并运行宿主联测。Linux Alpine/musl 需另外构建。
 
 Linux 下载后，在文件所在目录核验：
 
@@ -191,6 +198,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 | 无法加载库 | CPA 是否含插件支持；CPU/系统/运行库是否匹配；文件是否可读 |
 | 模型可见但返回 403 | 目录不保证套餐权限，检查 `MODEL_NOT_IN_PLAN` |
 | 接口直连失败或超时 | 确认 CPA 全局代理；插件不继承 Windows 系统代理 |
+| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭，长推理模型在真实上游中的首字节与段间间隔尚未实测，取值宜宽松 |
 | 用量缺失 | 查看 `unavailable` / `status`；查询失败保留旧值 |
 | 日志写入失败 | 检查 data_dir 的磁盘空间、权限及 `storage_error` |
 | 重启后设置未按 YAML 改变 | 已存 settings.json 优先；采用明确的迁移方案 |
@@ -216,7 +224,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 
 ### 文件与写入
 
-`settings.json`、凭证仍走原配置／宿主流程。`requests.json`、`statistics.json`、`usage.json` 保留原数组／字典结构，分别标脏、250ms 批量刷盘；只有变更的文件写入。`runtime-format.json` 记录格式版本及最近 20 条恢复警告。未知格式、设置损坏或不可读均明确报错，保留原文件。
+`settings.json`、凭证仍走原配置／宿主流程。`requests.json`、`statistics.json`、`usage.json` 保留原数组／字典结构（紧凑 JSON），分别标脏、250ms 批量刷盘；只有变更的文件写入。持续变更时，同一文件两次重写的间隔按上次写入大小折算为约 1 MiB/s，最长 10 秒：小文件仍为 250ms，数 MB 的统计文件约数秒写一次；正常卸载会立即写入全部待写文件。强制结束进程或断电时，大文件可能丢失这一间隔内的变更。`runtime-format.json` 记录格式版本及最近 20 条恢复警告。未知格式、设置损坏或不可读均明确报错，保留原文件。
 
 每个运行文件的 `.last-good` 检查点最多每分钟随变更刷新一次。恢复可能丢失检查点之后的数据，独立文件不构成跨文件事务，也不承诺断电 fsync 耐久性。状态／设置页显示最近成功刷盘、待写文件与起始时间，恢复警告重启后仍保留。无有效检查点时，仅重建损坏的观察文件，并提示该历史范围未知；配置与其他有效历史保留。
 

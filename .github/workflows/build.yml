@@ -59,11 +59,11 @@ jobs:
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_round2.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_count_tokens.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_thinking_suffix.py
-          gh release download v0.2.11 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.11_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
+          gh release download v0.2.12 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.12_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
           cd /tmp/bridge-previous
           sha256sum --check --ignore-missing checksums.txt
           cd "$GITHUB_WORKSPACE"
-          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.11_linux_amd64.zip
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.12_linux_amd64.zip
       - uses: actions/download-artifact@v4
         with:
           name: cpamp-manager-test
@@ -92,12 +92,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux libraries are built in manylinux_2_28 so they load on glibc 2.28+ hosts, not only
+          # on the runner's glibc. Pinned by digest; bump deliberately.
           - runner: ubuntu-24.04
             target: linux-amd64
             extension: so
+            manylinux: quay.io/pypa/manylinux_2_28_x86_64:2026.11.06-1@sha256:ae830e2ecbf4568743f8b760920cd7483538375b6b242a9fb02b5b2ad0245f68
+            cpa-archive: CLIProxyAPI_8.0.23_linux_amd64.tar.gz
           - runner: ubuntu-24.04-arm
             target: linux-arm64
             extension: so
+            manylinux: quay.io/pypa/manylinux_2_28_aarch64:2026.11.06-1@sha256:6c4f9b6d9453bb47b21b4c1e4f04f3c662584f60f4ed8455f4561a336ff19414
+            cpa-archive: CLIProxyAPI_8.0.23_linux_aarch64.tar.gz
           - runner: windows-2022
             target: windows-amd64
             extension: dll
@@ -128,9 +134,28 @@ jobs:
           REPOSITORY: https://github.com/${{ github.repository }}
           # Only read by the darwin toolchain; v0.2.11 and earlier shipped with minos 14.0.
           MACOSX_DEPLOYMENT_TARGET: '14.0'
+          MANYLINUX_IMAGE: ${{ matrix.manylinux }}
+          # Supported Linux glibc minimum: the build fails above it and package.py records it in BUILD.json.
+          GLIBC_FLOOR: ${{ matrix.manylinux != '' && '2.28' || '' }}
         run: |
           mkdir -p dist
-          go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="-s -w -X commandcodebridge/internal/bridge.Repository=$REPOSITORY" -o dist/commandcodebridge.${{ matrix.extension }} ./cmd/commandcodebridge
+          ldflags="-s -w -X commandcodebridge/internal/bridge.Repository=$REPOSITORY"
+          if [ -n "$MANYLINUX_IMAGE" ]; then
+            # Reuse the runner's official (statically linked) Go toolchain and caches inside the container.
+            goroot="$(go env GOROOT)"; gomodcache="$(go env GOMODCACHE)"; gocache="$(go env GOCACHE)"
+            mkdir -p "$gomodcache" "$gocache"
+            docker run --rm -u "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/src" -w /src -v "$goroot:/goroot:ro" \
+              -v "$gomodcache:/gomodcache" -v "$gocache:/gocache" \
+              -e HOME=/tmp -e GOMODCACHE=/gomodcache -e GOCACHE=/gocache -e GOTOOLCHAIN=local -e CGO_ENABLED=1 \
+              "$MANYLINUX_IMAGE" /goroot/bin/go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="$ldflags" -o dist/commandcodebridge.so ./cmd/commandcodebridge
+            required="$(objdump -T dist/commandcodebridge.so | grep -o 'GLIBC_[0-9.]*' | sed 's/^GLIBC_//' | sort -V | tail -1)"
+            echo "linux library requires glibc $required"
+            if [ "$(printf '%s\n%s\n' "$required" "$GLIBC_FLOOR" | sort -V | tail -1)" != "$GLIBC_FLOOR" ]; then
+              echo "::error::linux library requires glibc $required > $GLIBC_FLOOR"; exit 1
+            fi
+          else
+            go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="$ldflags" -o dist/commandcodebridge.${{ matrix.extension }} ./cmd/commandcodebridge
+          fi
           if [ "${{ matrix.target }}" = darwin-arm64 ]; then
             minos="$(otool -l dist/commandcodebridge.dylib | awk '/LC_BUILD_VERSION/ {found=1} found && $1 == "minos" {print $2; exit}')"
             echo "darwin dylib minos: $minos"
@@ -140,6 +165,29 @@ jobs:
           if [ "${{ matrix.target }}" = windows-amd64 ]; then helper="$helper.exe"; fi
           CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$helper" ./cmd/commandcodebridge-login
           python scripts/package.py dist/commandcodebridge.${{ matrix.extension }} --target ${{ matrix.target }}
+      - name: Load and run on glibc 2.28
+        if: matrix.manylinux != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANYLINUX_IMAGE: ${{ matrix.manylinux }}
+          CPA_ARCHIVE: ${{ matrix.cpa-archive }}
+        run: |
+          task_dir="$RUNNER_TEMP/cpa-glibc228"
+          mkdir -p "$task_dir"
+          gh release download v8.0.23 --repo router-for-me/CLIProxyAPI --pattern "$CPA_ARCHIVE" --pattern checksums.txt --dir "$task_dir"
+          (cd "$task_dir" && sha256sum --check --ignore-missing checksums.txt && tar -xzf "$CPA_ARCHIVE")
+          # The pinned CPA release only needs glibc 2.3.2, so the whole host runs inside the old userland.
+          docker run --rm -u "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/src" -w /src -v "$task_dir:/cpa:ro" \
+            -e HOME=/tmp -e CPA_BINARY=/cpa/cli-proxy-api -e BRIDGE_LIBRARY=/src/dist/commandcodebridge.so \
+            "$MANYLINUX_IMAGE" bash -euc '
+              ldd --version | head -1
+              py=/opt/python/cp312-cp312/bin/python3
+              $py -c "import ctypes, os; ctypes.CDLL(os.environ[\"BRIDGE_LIBRARY\"]); print(\"dlopen OK\")"
+              $py tests/cpa_e2e.py
+              $py tests/cpa_count_tokens.py
+              $py tests/cpa_thinking_suffix.py
+            '
       - name: Windows native host integration
         if: matrix.target == 'windows-amd64'
         shell: pwsh
@@ -358,7 +406,7 @@ jobs:
           pattern: commandcodebridge-*
           path: dist
           merge-multiple: true
-      - run: python scripts/checksums.py dist --include-cpamp
+      - run: python scripts/checksums.py dist --include-cpamp --max-glibc 2.28
       - uses: actions/upload-artifact@v4
         with:
           name: commandcodebridge-checksums
@@ -387,7 +435,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          python scripts/checksums.py dist --include-cpamp
+          python scripts/checksums.py dist --include-cpamp --max-glibc 2.28
           python - <<'PY'
           import json, os, pathlib, re, zipfile
           version = re.search(r'const Version = "([^"]+)"', pathlib.Path('internal/bridge/types.go').read_text()).group(1)

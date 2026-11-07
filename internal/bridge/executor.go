@@ -15,6 +15,9 @@ type upstreamStream struct {
 	Headers    http.Header `json:"headers"`
 	StreamID   string      `json:"stream_id"`
 	deadline   time.Time
+	// Optional progress guards; zero values disable them.
+	firstByteDeadline time.Time
+	idleTimeout       time.Duration
 }
 type readChunk struct {
 	Payload []byte `json:"payload"`
@@ -23,6 +26,12 @@ type readChunk struct {
 }
 
 func (s *Service) openUpstream(payload any, deadline time.Time) (upstreamStream, error) {
+	return s.openUpstreamUntil(payload, deadline, fail(504, "upstream request timed out"))
+}
+
+// openUpstreamUntil waits for response headers until deadline and reports
+// timeoutErr when it passes.
+func (s *Service) openUpstreamUntil(payload any, deadline time.Time, timeoutErr error) (upstreamStream, error) {
 	if deadline.IsZero() {
 		deadline = time.Now().Add(time.Duration(s.config().TimeoutSeconds) * time.Second)
 	}
@@ -74,7 +83,7 @@ func (s *Service) openUpstream(payload any, deadline time.Time) (upstreamStream,
 		}
 		return r.up, nil
 	case <-timer.C:
-		return upstreamStream{}, fail(504, "upstream request timed out")
+		return upstreamStream{}, timeoutErr
 	case <-s.stopCh:
 		return upstreamStream{}, fail(503, "plugin is shutting down")
 	}
@@ -94,24 +103,65 @@ func (s *Service) read(up upstreamStream, fn func([]byte) error) error {
 	if deadline.IsZero() {
 		deadline = time.Now().Add(time.Duration(s.config().TimeoutSeconds) * time.Second)
 	}
+	// A watchdog closes the host stream when the overall deadline, the first
+	// byte deadline or the idle limit passes; the blocked read then returns.
 	var mu sync.Mutex
-	timedOut := false
-	done := make(chan struct{})
-	timer := time.AfterFunc(time.Until(deadline), func() { defer close(done); mu.Lock(); timedOut = true; mu.Unlock(); s.closeUpstream(up.StreamID) })
-	defer func() {
-		if !timer.Stop() {
-			<-done
+	var expired error
+	progress := make(chan struct{}, 1)
+	finished := make(chan struct{})
+	watching := make(chan struct{})
+	go func() {
+		defer close(watching)
+		expire := func(err error) {
+			mu.Lock()
+			expired = err
+			mu.Unlock()
+			s.closeUpstream(up.StreamID)
 		}
+		overall := time.NewTimer(time.Until(deadline))
+		defer overall.Stop()
+		guard := time.NewTimer(time.Hour)
+		guard.Stop()
+		defer guard.Stop()
+		var guardC <-chan time.Time
+		var guardErr error
+		if !up.firstByteDeadline.IsZero() && up.firstByteDeadline.Before(deadline) {
+			guard.Reset(time.Until(up.firstByteDeadline))
+			guardC, guardErr = guard.C, errFirstByteTimeout()
+		}
+		for {
+			select {
+			case <-overall.C:
+				expire(fail(504, "upstream request timed out"))
+				return
+			case <-guardC:
+				expire(guardErr)
+				return
+			case <-progress:
+				guard.Stop()
+				guardC = nil
+				if up.idleTimeout > 0 {
+					guard.Reset(up.idleTimeout)
+					guardC, guardErr = guard.C, errStreamIdleTimeout()
+				}
+			case <-finished:
+				return
+			}
+		}
+	}()
+	defer func() {
+		close(finished)
+		<-watching
 	}()
 	total := 0
 	for {
 		var chunk readChunk
 		e := s.call("host.http.stream_read", map[string]string{"stream_id": up.StreamID}, &chunk)
 		mu.Lock()
-		timeout := timedOut
+		timeout := expired
 		mu.Unlock()
-		if timeout {
-			return fail(504, "upstream request timed out")
+		if timeout != nil {
+			return timeout
 		}
 		if e != nil || chunk.Error != "" {
 			return fail(502, "upstream stream interrupted")
@@ -121,6 +171,10 @@ func (s *Service) read(up upstreamStream, fn func([]byte) error) error {
 			return fail(502, "upstream response exceeds configured limit")
 		}
 		if len(chunk.Payload) > 0 {
+			select {
+			case progress <- struct{}{}:
+			default:
+			}
 			if e := fn(chunk.Payload); e != nil {
 				return e
 			}
@@ -366,11 +420,21 @@ func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 	}
 	body["stream"] = true
 	entry.UpstreamAttempted = true
-	up, e := s.openUpstream(map[string]any{"host_callback_id": r.HostCallbackID, "method": "POST", "url": executionConfig.BaseURL + path, "headers": upstreamHeaders(c, executionConfig.ZDR), "body": jsonBytes(body)}, start.Add(time.Duration(executionConfig.TimeoutSeconds)*time.Second))
+	overall := start.Add(time.Duration(executionConfig.TimeoutSeconds) * time.Second)
+	headerDeadline, headerTimeout := overall, fail(504, "upstream request timed out")
+	var firstByteDeadline time.Time
+	if executionConfig.FirstByteTimeoutSeconds > 0 {
+		if at := start.Add(time.Duration(executionConfig.FirstByteTimeoutSeconds) * time.Second); at.Before(overall) {
+			firstByteDeadline, headerDeadline, headerTimeout = at, at, errFirstByteTimeout()
+		}
+	}
+	up, e := s.openUpstreamUntil(map[string]any{"host_callback_id": r.HostCallbackID, "method": "POST", "url": executionConfig.BaseURL + path, "headers": upstreamHeaders(c, executionConfig.ZDR), "body": jsonBytes(body)}, headerDeadline, headerTimeout)
 	if e != nil {
 		release(e)
 		return early(e)
 	}
+	up.deadline, up.firstByteDeadline = overall, firstByteDeadline
+	up.idleTimeout = time.Duration(executionConfig.IdleTimeoutSeconds) * time.Second
 	if up.StatusCode < 200 || up.StatusCode >= 300 {
 		_, e = s.readJSON(up)
 		e = redactError(e, c.APIKey)

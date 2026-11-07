@@ -1,6 +1,27 @@
 # CommandCodeBridge 发布说明
 
-## v0.2.12
+## v0.2.13
+
+发布日期：2026-11-07。CPA 原生插件，C ABI 1 / RPC schema 6；调用官方 Provider API。
+
+### 本次更新
+
+- **Linux 要求降至 glibc 2.28**：此前的 `.so` 在新系统上构建，引入了 glibc 2.32／2.34 的符号，在 RHEL/AlmaLinux 8、Debian 10 等主机上无法加载；CPA 本身只需 glibc 2.3.2。Linux 包现在在 manylinux_2_28 容器中构建，CI 在 glibc 2.28 用户态中加载插件并运行宿主联测，发布校验会拒绝超出 2.28 的包。
+- **减少运行数据写盘**：请求记录、统计和额度文件改为紧凑 JSON，结构不变；同一文件持续变更时，重写间隔按文件大小折算为约 1 MiB/s（最长 10 秒），小文件仍为 250ms，正常卸载立即写入。合成测量中，90 天统计文件的持续写入从约 39 MB/s 降至约 1 MB/s。代价是强制结束进程时，大文件可能丢失最多约 10 秒的变更。
+- **可选的首字节超时与流空闲超时**：在「设置 → 请求策略」或 YAML 中配置 `first_byte_timeout_seconds`、`stream_idle_timeout_seconds`（0 为关闭，启用时 5–1800 秒）。触发时返回 504 并关闭上游连接，日志错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`。默认关闭：真实上游下长推理模型的首字节与段间间隔尚未实测。
+- **发布门槛**：Antigravity 额度行为回归测试纳入构建链路（#14）。
+
+### 升级步骤
+
+1. 更新插件至 **v0.2.13**，确认实际运行版本。无需修改配置。
+2. 本次未改变 CPAMP 页面功能；页面带插件版本标识，仍建议在「设置 → CPAMP 原生面板」更新页面，异机／独立容器使用 `commandcodebridge_0.2.13_cpamp-web.zip`。
+3. 如需启用超时保护，建议取值宽松（例如首字节 120 秒以上、流空闲 120 秒以上），观察日志中的错误类型后再调整。
+
+### 下载与校验
+
+四平台原生 ZIP、独立 CPAMP 前端 ZIP、五个 `.zip.sha256` 和统一 `checksums.txt`，共 **11 个资产**。Linux 包的 `BUILD.json` 中 `glibc_minimum` 为 2.28。CPA 发布门槛仍为 v8.0.23；v8.0.59 在 Windows 本地完成全套宿主联测，并由 CI 候选任务持续复核。本次只使用本地模拟上游，未进行真实模型生成，未访问或修改任何部署服务器。
+
+## 已发布 v0.2.12
 
 发布日期：2026-11-07。CPA 原生插件，C ABI 1 / RPC schema 6；调用官方 Provider API。
 

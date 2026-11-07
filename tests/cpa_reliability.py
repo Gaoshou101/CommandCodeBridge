@@ -35,14 +35,18 @@ class FaultUpstream(MockUpstream):
             return
         if model == "fault-server":
             return self.send_json({"error": {"message": "fixture unavailable"}}, 503)
-        if model in ("fault-truncated", "fault-timeout", "fault-cancel"):
+        if model in ("fault-truncated", "fault-timeout", "fault-cancel", "fault-idle"):
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Connection", "close")
             self.end_headers()
             chunk = {"id": "fault-fixture", "object": "chat.completion.chunk", "model": model,
                      "choices": [{"index": 0, "delta": {"role": "assistant", "content": "partial"}, "finish_reason": None}]}
-            if model == "fault-timeout":
+            if model == "fault-idle":
+                # One content chunk, then the same stall as fault-timeout.
+                self.wfile.write(("data: " + json.dumps(chunk) + "\n\n").encode())
+                self.wfile.flush()
+            if model in ("fault-timeout", "fault-idle"):
                 # Keep the stream idle after headers, without buffering content.
                 self.connection.settimeout(15)
                 try:
@@ -76,7 +80,7 @@ def run():
     FaultUpstream.counts.clear()
     with CPAHost(FaultUpstream) as host:
         cid = host.credential()
-        models = [chat_model(name) for name in ["fault-rate", "fault-server", "fault-truncated", "fault-timeout", "fault-cancel", "mock-chat"]]
+        models = [chat_model(name) for name in ["fault-rate", "fault-server", "fault-truncated", "fault-timeout", "fault-cancel", "fault-idle", "mock-chat"]]
         models += [chat_model("rate-alias", "fault-rate")]
         host.models(models)
         test = lambda model: {"credential_id": cid, "model": model}
@@ -120,6 +124,24 @@ def run():
         assert 9 <= time.monotonic() - started < 15
         assert FaultUpstream.disconnected.wait(2), "timeout left upstream connection open"
 
+        # Optional stall guards end a silent or stalled upstream before timeout_seconds.
+        host.call(API + "/config", {"first_byte_timeout_seconds": 5, "stream_idle_timeout_seconds": 5}, method="PUT")
+        FaultUpstream.disconnected.clear()
+        started = time.monotonic()
+        host.error(API + "/models/test", test("fault-timeout"), 504)
+        assert 4.5 <= time.monotonic() - started < 9, time.monotonic() - started
+        assert FaultUpstream.disconnected.wait(2), "first byte timeout left upstream connection open"
+        FaultUpstream.disconnected.clear()
+        started = time.monotonic()
+        streamed = host.call("/v1/chat/completions", chat_body("fault-idle", True), management=False, stream=True)
+        assert 4.5 <= time.monotonic() - started < 9, time.monotonic() - started
+        assert "partial" in streamed and '"error"' in streamed, streamed
+        assert FaultUpstream.disconnected.wait(2), "idle timeout left upstream connection open"
+        guard_kinds = {(row["upstream_model"], row.get("error_kind")) for row in host.logs()}
+        assert ("fault-timeout", "upstream_first_byte_timeout") in guard_kinds, guard_kinds
+        assert ("fault-idle", "upstream_stream_idle_timeout") in guard_kinds, guard_kinds
+        host.call(API + "/config", {"first_byte_timeout_seconds": 0, "stream_idle_timeout_seconds": 0}, method="PUT")
+
         # Close the client while upstream is still emitting; it must be released.
         FaultUpstream.disconnected.clear()
         FaultUpstream.completed.clear()
@@ -137,7 +159,7 @@ def run():
         # retry history as duplicate accounting. No fixture reports usage.
         queue = []
         failures = sum(FaultUpstream.counts[("fault-server", key)] for key in
-                       ("Bearer fixture-primary-key", "Bearer fixture-second-key")) + 2
+                       ("Bearer fixture-primary-key", "Bearer fixture-second-key")) + 3  # truncated, idle, cancel
         def failures_accounted():
             queue.extend(host.call("/v8/management/observability/usage/queue?count=100"))
             return len(queue) >= failures
@@ -179,7 +201,7 @@ def run():
         assert not status["storage_error"], status
         for path in host.data.glob("*.json"):
             assert "fixture-primary-key" not in path.read_text(), path.name
-        print("PASS: native CPA 429/alias/shared-account cooldown and recovery, 503 failover, incomplete SSE, timeout, client cancel, restart persistence and accounting", flush=True)
+        print("PASS: native CPA 429/alias/shared-account cooldown and recovery, 503 failover, incomplete SSE, timeout, client cancel, first-byte/idle stall guards, restart persistence and accounting", flush=True)
 
 
 if __name__ == "__main__":
