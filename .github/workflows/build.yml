@@ -290,16 +290,20 @@ jobs:
           (cd dist/upstream-compatibility && sha256sum --check --ignore-missing checksums.txt && tar -xzf "$archive")
           python scripts/embed_cpamp_panel.py dist/cpamp-web/*_cpamp-web.zip
           go build -trimpath -buildvcs=false -buildmode=c-shared -o dist/upstream-compatibility/commandcodebridge.so ./cmd/commandcodebridge
+          # cpa_native_management.py drives the local OAuth helper from dist/.
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o dist/commandcodebridge-login ./cmd/commandcodebridge-login
           export CPA_BINARY="$PWD/dist/upstream-compatibility/cli-proxy-api"
           export BRIDGE_LIBRARY="$PWD/dist/upstream-compatibility/commandcodebridge.so"
-          python tests/cpa_e2e.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_reliability.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_diagnostics.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_native_management.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_round2.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_count_tokens.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_thinking_suffix.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_hot_reload.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
+          # Run every check so the report is complete, then fail if any of them failed.
+          failed=()
+          for test in cpa_e2e cpa_reliability cpa_diagnostics cpa_native_management cpa_round2 cpa_count_tokens cpa_thinking_suffix cpa_hot_reload; do
+            echo "### $test" >> dist/upstream-compatibility/result.txt
+            if ! python "tests/$test.py" 2>&1 | tee -a dist/upstream-compatibility/result.txt; then failed+=("$test"); fi
+          done
+          if [ "${#failed[@]}" -ne 0 ]; then
+            echo "FAILED: ${failed[*]}" | tee -a dist/upstream-compatibility/result.txt
+            exit 1
+          fi
       - name: Record candidate result
         if: always()
         shell: bash

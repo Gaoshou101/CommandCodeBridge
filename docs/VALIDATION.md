@@ -21,6 +21,7 @@
 
 - GitHub 已于 2026-11-02 停用 `macos-14` runner；PR #14 的 macOS 任务即因 `The configuration 'macos-14-arm64-us-default' is not supported` 被取消。darwin-arm64 改用 `macos-15`，并以 `MACOSX_DEPLOYMENT_TARGET=14.0` 保持与 v0.2.11 相同的最低系统（v0.2.11 发布包 dylib 的 `LC_BUILD_VERSION` 为 minos 14.0／SDK 14.5），构建后用 `otool -l` 校验。macOS 构建只能在 CI 验证，本机未运行。
 - 新增每周定时运行；最新 CPA 候选任务加跑原生管理、第二轮协议、count_tokens、思考后缀与热重载，定时运行时候选失败会使工作流失败。热升级联测的前一版本改为 v0.2.11。
+- PR #15 首次 CI 中，候选任务（v8.0.59）的 e2e／可靠性／诊断通过，`cpa_native_management.py` 因该任务未构建本地 OAuth 辅助程序 `dist/commandcodebridge-login` 而报 `FileNotFoundError`（测试环境缺失，非插件行为）。已在候选任务中构建该程序，并改为逐项运行全部联测、汇总失败后再退出，避免前一项失败掩盖后续结果。
 
 ### 待验证
 
