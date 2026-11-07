@@ -35,7 +35,7 @@ v0.2.8 的四平台插件内嵌新版 CPAMP 页面，支持官方套餐月限额
 
 | 操作 | 生效方式 |
 | --- | --- |
-| 控制台修改超时、日志保留、用量刷新、响应大小、ZDR、模型或面板探测路径 | 保存后即时生效，不重启 CPA |
+| 控制台修改超时（含首字节与流空闲超时）、日志保留、用量刷新、响应大小、ZDR、模型或面板探测路径 | 保存后即时生效，不重启 CPA |
 | CPA 配置页修改插件的 CPAMP 路径 | 宿主重载调用 `plugin.reconfigure`；显式非空路径覆盖旧保存值 |
 | 更新已启用的外部原生面板 | 点击「更新原生面板」，原路径原子替换；强刷浏览器，不重启 Manager Server |
 | 通过支持热升级的 CPA 插件商店升级动态库 | 宿主选择新的版本化文件并切换插件；确认运行版本，无需重启 CPA |
@@ -191,6 +191,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 | 无法加载库 | CPA 是否含插件支持；CPU/系统/运行库是否匹配；文件是否可读 |
 | 模型可见但返回 403 | 目录不保证套餐权限，检查 `MODEL_NOT_IN_PLAN` |
 | 接口直连失败或超时 | 确认 CPA 全局代理；插件不继承 Windows 系统代理 |
+| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭，长推理模型在真实上游中的首字节与段间间隔尚未实测，取值宜宽松 |
 | 用量缺失 | 查看 `unavailable` / `status`；查询失败保留旧值 |
 | 日志写入失败 | 检查 data_dir 的磁盘空间、权限及 `storage_error` |
 | 重启后设置未按 YAML 改变 | 已存 settings.json 优先；采用明确的迁移方案 |

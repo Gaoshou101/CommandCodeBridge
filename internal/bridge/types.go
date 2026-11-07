@@ -35,6 +35,16 @@ func fail(status int, message string) error {
 	return &APIError{Status: status, Kind: "invalid_request", Message: message}
 }
 
+// Upstream progress guards are reported separately from the overall request
+// timeout so logs and clients can tell a stalled upstream from a slow one.
+func errFirstByteTimeout() error {
+	return &APIError{Status: 504, Kind: "upstream_first_byte_timeout", Message: "upstream sent no response data within first_byte_timeout_seconds"}
+}
+
+func errStreamIdleTimeout() error {
+	return &APIError{Status: 504, Kind: "upstream_stream_idle_timeout", Message: "upstream stream was idle longer than stream_idle_timeout_seconds"}
+}
+
 // CommandCode has no exact token counting endpoint, and the plugin never
 // fabricates a count. Report an endpoint-level gap rather than HTTP 501: CPA
 // treats a count_tokens 404 as availability-neutral on every supported host,
@@ -102,6 +112,11 @@ type Model struct {
 	ThinkingMode  string           `json:"thinking_mode,omitempty" yaml:"thinking_mode,omitempty"`
 	Reasoning     ReasoningMapping `json:"reasoning_mapping" yaml:"reasoning_mapping"`
 }
+
+// Config is the plugin configuration. FirstByteTimeoutSeconds limits the time
+// from request start to the first upstream response data and IdleTimeoutSeconds
+// (stream_idle_timeout_seconds) the gap between later chunks of an upstream
+// stream; both run inside TimeoutSeconds and zero disables them.
 type Config struct {
 	DataDir                 string  `json:"data_dir" yaml:"data_dir"`
 	BaseURL                 string  `json:"base_url" yaml:"base_url"`
@@ -111,6 +126,8 @@ type Config struct {
 	CPAMPPanelPath          string  `json:"cpamp_panel_path" yaml:"cpamp_panel_path"`
 	Models                  []Model `json:"models" yaml:"models"`
 	TimeoutSeconds          int     `json:"timeout_seconds" yaml:"timeout_seconds"`
+	FirstByteTimeoutSeconds int     `json:"first_byte_timeout_seconds" yaml:"first_byte_timeout_seconds"`
+	IdleTimeoutSeconds      int     `json:"stream_idle_timeout_seconds" yaml:"stream_idle_timeout_seconds"`
 	LogRetention            int     `json:"log_retention" yaml:"log_retention"`
 	MaxResponseBytes        int     `json:"max_response_bytes" yaml:"max_response_bytes"`
 	UsageRefreshSeconds     int     `json:"usage_refresh_seconds" yaml:"usage_refresh_seconds"`
@@ -144,6 +161,11 @@ func (c *Config) validate() error {
 			return fail(400, "public_base_url must be an HTTP(S) URL without credentials, query or fragment")
 		}
 		c.PublicBaseURL = strings.TrimRight(c.PublicBaseURL, "/")
+	}
+	for _, guard := range []int{c.FirstByteTimeoutSeconds, c.IdleTimeoutSeconds} {
+		if guard != 0 && (guard < 5 || guard > 1800) {
+			return fail(400, "first_byte_timeout_seconds and stream_idle_timeout_seconds must be 0 or 5 to 1800")
+		}
 	}
 	if c.DataDir == "" || c.TimeoutSeconds < 10 || c.TimeoutSeconds > 1800 || c.LogRetention < 10 || c.LogRetention > 10000 || c.MaxResponseBytes < 65536 || c.MaxResponseBytes > 64<<20 || c.UsageRefreshSeconds < 30 || c.UsageRefreshSeconds > 3600 {
 		return fail(400, "invalid data directory, timeout, retention, response limit or refresh interval")

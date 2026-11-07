@@ -186,7 +186,7 @@ func (s *Service) management(raw json.RawMessage) (any, error) {
 			e = fail(400, "invalid settings JSON")
 		} else {
 			for k := range in {
-				if k != "timeout_seconds" && k != "log_retention" && k != "max_response_bytes" && k != "usage_refresh_seconds" && k != "statistics_retention_days" && k != "zdr" && k != "cpamp_install_dir" && k != "cpamp_config_path" && k != "cpamp_panel_path" {
+				if k != "timeout_seconds" && k != "first_byte_timeout_seconds" && k != "stream_idle_timeout_seconds" && k != "log_retention" && k != "max_response_bytes" && k != "usage_refresh_seconds" && k != "statistics_retention_days" && k != "zdr" && k != "cpamp_install_dir" && k != "cpamp_config_path" && k != "cpamp_panel_path" {
 					e = fail(400, "unsupported editable setting")
 					break
 				}
