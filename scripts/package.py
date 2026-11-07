@@ -3,6 +3,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -64,11 +65,20 @@ manifest = {
     "login_helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
     "native_panel_sha256": hashlib.sha256(panel_page).hexdigest(),
 }
+def glibc_key(value):
+    return tuple(int(part) for part in value.split("."))
+
+
 if args.target.startswith("linux-") and shutil.which("readelf"):
     symbols = subprocess.run(["readelf", "--version-info", str(args.library)], capture_output=True, text=True, check=True).stdout
     versions = set(re.findall(r"GLIBC_([0-9]+(?:\.[0-9]+)+)", symbols))
     if versions:
-        manifest["glibc_minimum"] = max(versions, key=lambda value: tuple(int(part) for part in value.split(".")))
+        symbol_maximum = max(versions, key=glibc_key)
+        # The release is built and tested in a manylinux userland. Older glibc may resolve
+        # every versioned symbol yet remains untested, so the floor is the supported minimum.
+        floor = os.environ.get("GLIBC_FLOOR", "").strip()
+        manifest["glibc_minimum"] = max(symbol_maximum, floor, key=glibc_key) if floor else symbol_maximum
+        manifest["glibc_symbol_version_max"] = symbol_maximum
 with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
     bundle.write(args.library, args.library.name)
     bundle.write(helper, helper.name)

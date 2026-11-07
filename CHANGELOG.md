@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Linux 动态库改在固定摘要的 manylinux_2_28 容器中构建，最低 glibc 从 2.34 降至 **2.28**（RHEL/AlmaLinux 8、Debian 10、Ubuntu 20.04 及更新版本）。CI 在 glibc 2.28 用户态中加载动态库，并运行 CPA v8.0.23 宿主联测；构建与发布校验会拒绝要求更高 glibc 的 Linux 包。`BUILD.json` 的 `glibc_minimum` 记录受支持的最低版本，`glibc_symbol_version_max` 记录符号版本的实际上限。
+
 ## [0.2.12] - 2026-11-07
 
 ### Fixed

@@ -15,7 +15,12 @@ TARGETS = {"linux-amd64": "so", "linux-arm64": "so", "windows-amd64": "dll", "da
 parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=pathlib.Path)
 parser.add_argument("--include-cpamp", action="store_true", help="Also require the CPAMP frontend from the same integration source")
+parser.add_argument("--max-glibc", help="Require every Linux package to record a glibc minimum no higher than this version")
 args = parser.parse_args()
+
+
+def glibc_key(value):
+    return tuple(int(part) for part in value.split("."))
 archives = sorted(args.directory.rglob("commandcodebridge_*.zip"))
 if len(archives) != len(TARGETS) + int(args.include_cpamp):
     parser.error("expected four platform packages" + (" and one CPAMP frontend" if args.include_cpamp else ""))
@@ -66,6 +71,10 @@ for archive in archives:
         goos, goarch = target.split("-")
         if archive.name != f"commandcodebridge_{build['version']}_{goos}_{goarch}.zip":
             parser.error("archive does not use CPA's required filename")
+        if goos == "linux" and args.max_glibc:
+            minimum = build.get("glibc_minimum")
+            if not minimum or glibc_key(minimum) > glibc_key(args.max_glibc):
+                parser.error(f"{archive.name} requires glibc {minimum or 'unknown'}, above {args.max_glibc}")
         library = f"commandcodebridge.{TARGETS[target]}"
         if hashlib.sha256(bundle.read(library)).hexdigest() != build["library_sha256"]:
             parser.error("library checksum mismatch")

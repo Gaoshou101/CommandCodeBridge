@@ -168,6 +168,8 @@ class PanelValidationTests(unittest.TestCase):
             (folder / ('commandcodebridge-login.exe' if target.startswith('windows') else 'commandcodebridge-login')).write_bytes(b'fixture helper')
             self.assert_result(self.script('package.py', library, '--target', target), True)
         self.assert_result(self.script('checksums.py', output, '--include-cpamp'), True)
+        # The fixture library is either uninspected or needs far more than glibc 0.1.
+        self.assertIn('above 0.1', self.assert_result(self.script('checksums.py', output, '--include-cpamp', '--max-glibc', '0.1'), False))
         # Exercise the verifier and apply baseline loader from an extracted ZIP.
         extracted = self.root / 'extracted'
         with zipfile.ZipFile(self.archive) as bundle:
