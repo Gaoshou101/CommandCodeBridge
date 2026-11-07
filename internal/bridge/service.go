@@ -232,7 +232,7 @@ func (s *Service) Handle(method string, raw json.RawMessage) (any, error) {
 		}
 		return s.execute(r, method == "executor.execute_stream")
 	case "executor.count_tokens":
-		return nil, fail(501, "CommandCode has no exact token counting endpoint")
+		return nil, errCountTokensUnsupported()
 	case "executor.http_request":
 		return nil, fail(400, "use the model executor")
 	case "management.register":
@@ -281,13 +281,24 @@ func (s *Service) modelRegistration() any {
 	}
 	return map[string]any{"Provider": Provider, "Models": models}
 }
-func (s *Service) model(alias string) (Model, error) {
-	for _, m := range s.config().Models {
+
+// model resolves a configured alias. When only the alias without a CPA
+// thinking suffix exists, it also returns the raw suffix for the caller.
+func (s *Service) model(alias string) (Model, string, error) {
+	models := s.config().Models
+	for _, m := range models {
 		if m.ID == alias {
-			return m, nil
+			return m, "", nil
 		}
 	}
-	return Model{}, fail(404, "model alias is not configured")
+	if base, raw, ok := splitThinkingSuffix(alias); ok {
+		for _, m := range models {
+			if m.ID == base {
+				return m, raw, nil
+			}
+		}
+	}
+	return Model{}, "", fail(404, "model alias is not configured")
 }
 func authData(c Credential, name string) any {
 	if name == "" {

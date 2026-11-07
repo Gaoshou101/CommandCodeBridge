@@ -1,5 +1,32 @@
 # 开发验证记录
 
+## v0.2.12 CPA 兼容修复（2026-11-07，未发布源码）
+
+本轮只使用本地模拟上游，未进行真实模型生成，未访问或修改任何部署服务器。CPA 发布门槛仍为 v8.0.23；`compatibility.json` 未改动。
+
+### 问题复现
+
+- **count_tokens**：v0.2.11 对 `/v1/messages/count_tokens` 返回 501。在 Windows CPA v8.0.23 上复现：宿主把 501 当作凭证故障冷却凭证，随后同模型的 `/v1/messages` 返回 503 `auth_unavailable`（CLIProxyAPI #7271，上游修复 `1c53721`）。
+- **思考后缀**：v8.0.23 把 `mock-chat(high)` 原样交给插件，v0.2.11 返回 404，宿主随即把凭证标为 unavailable，未带后缀的同模型请求也变为 503。实测约 12 小时后宿主才重试；重启 CPA 立即恢复。插件热升级本身是否清除宿主已记录的冷却未验证。
+- v8.0.59（上游 `c9af529`）由宿主剥离后缀，但 v0.2.11 以原始请求体重建原生 Messages 请求时丢失后缀等级；宿主注入的 `reasoning_effort=auto` 在 Chat 模型上原样发往上游，在 Anthropic 模型上返回 400 `unsupported Anthropic reasoning effort`。
+- 新增 `tests/cpa_thinking_suffix.py` 使用修复前动态库在 v8.0.23 与 v8.0.59 上均失败，确认该测试能识别上述问题。
+
+### 自动化与宿主联测
+
+- Windows Go 1.26 `go vet ./internal/... ./cmd/...`、`gofmt -l` 与 `go test ./internal/... ./cmd/... -count=1` 通过，包括新增的 count_tokens 与思考后缀单元测试；Node **31 项**通过；`test_cpamp_panel_validation.py` 在 WSL Python 3.10 下 6 项通过（Windows 商店版 Python 的 `python.exe` 无法被 `shutil.copyfile` 读取，该用例在本机 Windows 上属于环境错误，非代码失败）。
+- Windows amd64 动态库（WSL 交叉编译，晚于最后一次源码修改）在实际 Windows CPA **v8.0.23** 与 **v8.0.59** 上各运行 9 项，共 **18/18 通过**：`cpa_e2e.py`（25 个请求）、`cpa_native_management.py`、`cpa_reliability.py`、`cpa_diagnostics.py`、`cpa_round2.py`（13 次模拟请求，真实请求 0）、`cpa_count_tokens.py`（两类模型各 3 轮 count_tokens 均为 404、随后 Messages 均为 200）、`cpa_thinking_suffix.py`（Chat／Responses／原生 Messages、流式与请求体覆盖，事后无冷却）、`cpa_hot_reload.py`，以及以 v0.2.11 正式 Windows 包（SHA-256 与发布 checksums 一致）为前一版本的 `cpa_hot_reload.py --previous-archive`，确认同一 CPA 进程内 0.2.11 → 0.2.12 热升级。
+- `tests/cpa_store_install.py` 在隔离 Windows CPA v8.0.59 中通过：匿名公开源发现、Release 选包、校验安装、重启加载。当时 `main` 的 `registry.json` 仍为 0.2.11，因此该次按 0.2.11 断言，验证的是 v8.0.59 宿主的商店安装路径，不代表 v0.2.12 资产已发布。
+
+### CI 变更
+
+- GitHub 已于 2026-11-02 停用 `macos-14` runner；PR #14 的 macOS 任务即因 `The configuration 'macos-14-arm64-us-default' is not supported` 被取消。darwin-arm64 改用 `macos-15`，并以 `MACOSX_DEPLOYMENT_TARGET=14.0` 保持与 v0.2.11 相同的最低系统（v0.2.11 发布包 dylib 的 `LC_BUILD_VERSION` 为 minos 14.0／SDK 14.5），构建后用 `otool -l` 校验。macOS 构建只能在 CI 验证，本机未运行。
+- 新增每周定时运行；最新 CPA 候选任务加跑原生管理、第二轮协议、count_tokens、思考后缀与热重载，定时运行时候选失败会使工作流失败。热升级联测的前一版本改为 v0.2.11。
+
+### 待验证
+
+- 四平台 CI（尤其 `macos-15` 与 Linux ARM64 上的新增联测）。
+- 真实上游下的思考后缀等级效果与 count_tokens 客户端行为。
+
 ## v0.2.10 发版记录（2026-10-18）
 
 用户已授权合并 PR #12 并发版。发布任务新增标签与源码版本、同一来源提交、四平台及 CPAMP 页面一致性检查；仅在协议测试、构建和校验通过后发布 11 个资产。实际发布状态以 [Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.10) 和对应标签 CI 为准。下方“未发布”描述保留为当轮验证时的历史状态，不代表真实上游验收已经完成。本次不部署目标服务。
