@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.12] - 2026-11-07
+
+### Fixed
+
+- `count_tokens` 改为插件本地返回 404 `count_tokens_unsupported`，不访问上游。CPA v8.0.23 等较早宿主会把原先的 501 当作凭证故障并冷却，随后的 `/v1/messages` 返回 503 `auth_unavailable`（CLIProxyAPI #7271，上游修复 `1c53721`）；已在 v8.0.23 复现并验证修复。
+- 支持 CPA 模型名思考后缀 `model(level)`／`model(budget)`。v8.0.59 之前的宿主把带后缀的模型名原样交给插件，插件此前返回 404，宿主随即把凭证标为 unavailable（v8.0.23 实测约 12 小时后才重试），未带后缀的同模型请求也变为 503。插件现按宿主规则解析后缀（`none`、`auto`／`-1`、`minimal`–`max`，数值预算按 512／1024／8192／24576 分级），并覆盖请求体中的推理设置；无法识别的后缀忽略。
+- CPA v8.0.59 会先剥离后缀，但插件以原始请求体重建原生 Messages 请求时丢失了后缀指定的等级，现已从原始模型名补回。宿主注入的 `reasoning_effort=auto` 不再发往上游，也不再在 Anthropic 模型上返回 400。
+
+### Changed
+
+- 新增 `cpa_count_tokens.py` 与 `cpa_thinking_suffix.py` 宿主联测，接入固定 v8.0.23 基线、Windows、Linux／macOS ARM64 和最新 CPA 候选任务；候选任务另跑原生管理、第二轮协议和热重载检查。
+- 新增每周定时运行，用于复核最新 CPA 候选；定时运行时候选失败会使工作流显式失败，非标签运行不发布。热升级联测的前一版本改为 v0.2.11。
+- macOS Apple Silicon 包改在 `macos-15` runner 构建（GitHub 已于 2026-11-02 停用 `macos-14`），以 `MACOSX_DEPLOYMENT_TARGET=14.0` 保持最低 macOS 14.0 不变，并在构建后校验。
+
 ## [0.2.11] - 2026-10-23
 
 ### Fixed

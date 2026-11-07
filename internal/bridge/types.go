@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const Version = "0.2.11"
+const Version = "0.2.12"
 const PluginID = "commandcodebridge"
 const Provider = "commandcode"
 
@@ -33,6 +33,15 @@ func (e *APIError) StatusCode() int { return e.Status }
 func (e *APIError) Code() string    { return e.Kind }
 func fail(status int, message string) error {
 	return &APIError{Status: status, Kind: "invalid_request", Message: message}
+}
+
+// CommandCode has no exact token counting endpoint, and the plugin never
+// fabricates a count. Report an endpoint-level gap rather than HTTP 501: CPA
+// treats a count_tokens 404 as availability-neutral on every supported host,
+// whereas hosts before CLIProxyAPI 1c53721 (#7271) cool the credential down
+// after a 501, so the following /v1/messages request fails with 503.
+func errCountTokensUnsupported() error {
+	return &APIError{Status: 404, Kind: "count_tokens_unsupported", Message: "count_tokens endpoint is not available for CommandCode", Local: true}
 }
 
 type HostCall func(string, any, any) error

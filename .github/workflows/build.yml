@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+  schedule:
+    # Weekly check against the newest CPA release; publish-release only runs for tags.
+    - cron: '23 3 * * 1'
 
 permissions:
   contents: read
@@ -47,11 +50,13 @@ jobs:
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_reliability.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_diagnostics.py
           CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_round2.py
-          gh release download v0.2.8 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.8_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_count_tokens.py
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_thinking_suffix.py
+          gh release download v0.2.11 --repo Gaoshou101/CommandCodeBridge --pattern commandcodebridge_0.2.11_linux_amd64.zip --pattern checksums.txt --dir /tmp/bridge-previous
           cd /tmp/bridge-previous
           sha256sum --check --ignore-missing checksums.txt
           cd "$GITHUB_WORKSPACE"
-          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.8_linux_amd64.zip
+          CPA_BINARY=/tmp/cpa-test/cli-proxy-api python3 tests/cpa_hot_reload.py --previous-archive /tmp/bridge-previous/commandcodebridge_0.2.11_linux_amd64.zip
       - uses: actions/download-artifact@v4
         with:
           name: cpamp-manager-test
@@ -77,7 +82,8 @@ jobs:
           - runner: windows-2022
             target: windows-amd64
             extension: dll
-          - runner: macos-14
+          # macos-14 was retired on 2026-11-02; MACOSX_DEPLOYMENT_TARGET below keeps the shipped minimum at 14.0.
+          - runner: macos-15
             target: darwin-arm64
             extension: dylib
     runs-on: ${{ matrix.runner }}
@@ -101,9 +107,16 @@ jobs:
         env:
           CGO_ENABLED: '1'
           REPOSITORY: https://github.com/${{ github.repository }}
+          # Only read by the darwin toolchain; v0.2.11 and earlier shipped with minos 14.0.
+          MACOSX_DEPLOYMENT_TARGET: '14.0'
         run: |
           mkdir -p dist
           go build -trimpath -buildvcs=false -buildmode=c-shared -ldflags="-s -w -X commandcodebridge/internal/bridge.Repository=$REPOSITORY" -o dist/commandcodebridge.${{ matrix.extension }} ./cmd/commandcodebridge
+          if [ "${{ matrix.target }}" = darwin-arm64 ]; then
+            minos="$(otool -l dist/commandcodebridge.dylib | awk '/LC_BUILD_VERSION/ {found=1} found && $1 == "minos" {print $2; exit}')"
+            echo "darwin dylib minos: $minos"
+            if [ "$minos" != "$MACOSX_DEPLOYMENT_TARGET" ]; then echo "::error::dylib minos $minos != $MACOSX_DEPLOYMENT_TARGET"; exit 1; fi
+          fi
           helper=dist/commandcodebridge-login
           if [ "${{ matrix.target }}" = windows-amd64 ]; then helper="$helper.exe"; fi
           CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$helper" ./cmd/commandcodebridge-login
@@ -135,6 +148,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows diagnostics integration failed' }
           python tests/cpa_round2.py
           if ($LASTEXITCODE -ne 0) { throw 'Windows round two integration failed' }
+          python tests/cpa_count_tokens.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows count_tokens integration failed' }
+          python tests/cpa_thinking_suffix.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows thinking suffix integration failed' }
           python tests/cpa_hot_reload.py
           if ($LASTEXITCODE -ne 0) { throw 'Windows live configuration integration failed' }
       - name: ARM64 native host integration
@@ -164,6 +181,8 @@ jobs:
           python tests/cpa_e2e.py
           python tests/cpa_native_management.py
           python tests/cpa_reliability.py
+          python tests/cpa_count_tokens.py
+          python tests/cpa_thinking_suffix.py
           python tests/cpa_hot_reload.py
       - uses: actions/upload-artifact@v4
         with:
@@ -243,7 +262,8 @@ jobs:
     needs: cpamp-web
     runs-on: ubuntu-24.04
     # Report candidate compatibility without changing the pinned release gate.
-    continue-on-error: true
+    # The weekly scheduled run fails visibly so a breaking CPA release is noticed.
+    continue-on-error: ${{ github.event_name != 'schedule' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -270,11 +290,20 @@ jobs:
           (cd dist/upstream-compatibility && sha256sum --check --ignore-missing checksums.txt && tar -xzf "$archive")
           python scripts/embed_cpamp_panel.py dist/cpamp-web/*_cpamp-web.zip
           go build -trimpath -buildvcs=false -buildmode=c-shared -o dist/upstream-compatibility/commandcodebridge.so ./cmd/commandcodebridge
+          # cpa_native_management.py drives the local OAuth helper from dist/.
+          CGO_ENABLED=0 go build -trimpath -buildvcs=false -o dist/commandcodebridge-login ./cmd/commandcodebridge-login
           export CPA_BINARY="$PWD/dist/upstream-compatibility/cli-proxy-api"
           export BRIDGE_LIBRARY="$PWD/dist/upstream-compatibility/commandcodebridge.so"
-          python tests/cpa_e2e.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_reliability.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
-          python tests/cpa_diagnostics.py 2>&1 | tee -a dist/upstream-compatibility/result.txt
+          # Run every check so the report is complete, then fail if any of them failed.
+          failed=()
+          for test in cpa_e2e cpa_reliability cpa_diagnostics cpa_native_management cpa_round2 cpa_count_tokens cpa_thinking_suffix cpa_hot_reload; do
+            echo "### $test" >> dist/upstream-compatibility/result.txt
+            if ! python "tests/$test.py" 2>&1 | tee -a dist/upstream-compatibility/result.txt; then failed+=("$test"); fi
+          done
+          if [ "${#failed[@]}" -ne 0 ]; then
+            echo "FAILED: ${failed[*]}" | tee -a dist/upstream-compatibility/result.txt
+            exit 1
+          fi
       - name: Record candidate result
         if: always()
         shell: bash

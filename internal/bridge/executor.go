@@ -239,27 +239,33 @@ func (s *Service) acquire(c Credential, model string) (func(error), error) {
 		}
 	}, nil
 }
-func (s *Service) prepare(r ExecutorRequest) (map[string]any, Credential, Model, error) {
+
+// prepare also returns the reasoning effort selected by a CPA model-name
+// thinking suffix, or "" when the request has no recognized suffix.
+func (s *Service) prepare(r ExecutorRequest) (map[string]any, Credential, Model, string, error) {
 	c, e := s.credential(r)
 	if e != nil {
-		return nil, c, Model{}, e
+		return nil, c, Model{}, "", e
 	}
 	if c.ProxyURL != "" {
-		return nil, c, Model{}, fail(400, "this CPA HTTP bridge supports the global proxy only; remove the credential proxy_url and configure the CPA global proxy")
+		return nil, c, Model{}, "", fail(400, "this CPA HTTP bridge supports the global proxy only; remove the credential proxy_url and configure the CPA global proxy")
 	}
-	m, e := s.model(r.Model)
+	m, suffix, e := s.model(r.Model)
 	if e != nil {
-		return nil, c, m, e
+		return nil, c, m, "", e
 	}
 	body, e := decodeObject(r.Payload)
 	if e != nil {
-		return nil, c, m, e
+		return nil, c, m, "", e
 	}
 	if len(list(body["messages"])) == 0 {
-		return nil, c, m, fail(400, "messages must be a nonempty array")
+		return nil, c, m, "", fail(400, "messages must be a nonempty array")
 	}
 	body["model"] = m.UpstreamID
-	return body, c, m, nil
+	if suffix == "" {
+		suffix = originalThinkingSuffix(r.OriginalRequest, m.ID)
+	}
+	return body, c, m, applyThinkingSuffix(body, suffix), nil
 }
 func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 	if e := s.begin(); e != nil {
@@ -267,7 +273,7 @@ func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 	}
 	r.Stream = stream
 	start := time.Now()
-	body, c, m, e := s.prepare(r)
+	body, c, m, suffixEffort, e := s.prepare(r)
 	executionConfig := s.config()
 	entry := s.newLog(r, c, m, start)
 	entry.CredentialScope = credentialEvidenceScope(c, executionConfig)
@@ -312,7 +318,20 @@ func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 			original, err := decodeObject(r.OriginalRequest)
 			if err == nil && len(list(original["messages"])) > 0 {
 				original["model"] = m.UpstreamID
-				if m.Reasoning.Enabled && entry.ReasoningFrom != entry.ReasoningTo {
+				if suffixEffort != "" {
+					// The model-name suffix overrides reasoning in the body.
+					delete(original, "reasoning_effort")
+					delete(original, "thinking")
+					if output := object(original["output_config"]); output != nil {
+						delete(output, "effort")
+						if len(output) == 0 {
+							delete(original, "output_config")
+						}
+					}
+					if effort := body["reasoning_effort"]; effort != nil {
+						original["reasoning_effort"] = effort
+					}
+				} else if m.Reasoning.Enabled && entry.ReasoningFrom != entry.ReasoningTo {
 					if body["reasoning_effort"] != nil {
 						original["reasoning_effort"] = body["reasoning_effort"]
 					} else {
