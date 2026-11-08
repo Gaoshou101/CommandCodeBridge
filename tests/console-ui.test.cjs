@@ -3,10 +3,16 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const {test} = require('node:test');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../internal/bridge/ui/console.js'), 'utf8');
+// Slice the formatted console source between two unique markers; fail loudly if either moves.
+function between(text, start, end) {
+  const from = text.indexOf(start), to = text.indexOf(end, from);
+  assert.ok(from >= 0 && to > from && text.indexOf(start, from + 1) < 0, `console.js markers not found: ${start} … ${end}`);
+  return text.slice(from, to);
+}
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 function functions(start, end, context) {
  vm.createContext(context);
- vm.runInContext(source.slice(source.indexOf(start), source.indexOf(end)), context);
+ vm.runInContext(between(source, start, end), context);
  return context;
 }
 test('model filters combine evidence with case-insensitive aliases and retain original action indices', () => {
@@ -46,13 +52,13 @@ test('closing a drawer after list refresh restores focus to its replacement trig
  let focused='';const old={isConnected:false,dataset:{logDetail:'request'}},replacement={dataset:{logDetail:'request'},focus(){focused='replacement'}};
  const dialog={open:false,querySelectorAll:()=>[],showModal(){this.open=true}};
  const document={activeElement:old,querySelector:()=>null,querySelectorAll:()=>[replacement]};
- const c=functions('const dialogOrigins=', 'function apiURL(',{state:{view:'logs'},document,$:()=>dialog});
+ const c=functions('const dialogOrigins =', 'function apiURL(',{state:{view:'logs'},document,$:()=>dialog});
  c.openDialog('detailDialog');c.restoreDialogFocus('detailDialog');assert.equal(focused,'replacement');
 });
 test('closing an older dialog never steals focus from the next modal',()=>{
  let focused=false;const dialog={open:false,querySelectorAll:()=>[],showModal(){this.open=true}};
  const document={activeElement:{isConnected:true,dataset:{},focus(){focused=true}},querySelector:()=>({open:true})};
- const c=functions('const dialogOrigins=', 'function apiURL(',{state:{view:'models'},document,$:()=>dialog});
+ const c=functions('const dialogOrigins =', 'function apiURL(',{state:{view:'models'},document,$:()=>dialog});
  c.openDialog('detailDialog');c.restoreDialogFocus('detailDialog');assert.equal(focused,false);
 });
 
@@ -62,14 +68,14 @@ test('focus restoration skips the hidden desktop trigger after a mobile layout c
  const visible={dataset:{modelDetail:'2'},getClientRects:()=>[{}],focus(){focused='visible'}};
  const dialog={open:false,querySelectorAll:()=>[],showModal(){this.open=true}};
  const document={activeElement:old,querySelector:()=>null,querySelectorAll:()=>[hidden,visible]};
- const c=functions('const dialogOrigins=', 'function apiURL(',{state:{view:'models'},document,$:()=>dialog});
+ const c=functions('const dialogOrigins =', 'function apiURL(',{state:{view:'models'},document,$:()=>dialog});
  c.openDialog('detailDialog');c.restoreDialogFocus('detailDialog');assert.equal(focused,'visible');
 });
 
 test('pending storage and recovery rows escape filenames and preserve original observation times',()=>{
  const nodes=new Map();const c={$:id=>{if(!nodes.has(id))nodes.set(id,{});return nodes.get(id)},esc:escape,fmt:String,when:x=>x||'未知'};
  functions('function statusRows(', 'function apiURL(',c);
- vm.runInContext(source.slice(source.indexOf('function renderStorage('),source.indexOf('async function loadStorage(')),c);
+ vm.runInContext(between(source, 'function renderStorage(', 'async function loadStorage('),c);
  c.renderStorage({precision:'minute/day',last_success_at:'original time',pending_files:['usage.json'],pending_since:'pending time',statistics_buckets:7,recovery_warnings:[{file:'<file>',message:'<script>history gap</script>',checked_at:'recovery time'}]});
  const html=c.$('storageStatus').innerHTML;
  for(const value of ['original time','pending time','usage.json','history gap','recovery time','恢复后的历史可能不完整'])assert.ok(html.includes(value));
@@ -80,14 +86,14 @@ test('catalog and test dialogs cannot reopen after management logout during load
  let resolve;const state={authenticated:true,key:'old',catalog:[]};const c={state,diagnosticIdentity:()=>state.key,api:()=>new Promise(done=>resolve=done),loadCredentials:()=>new Promise(done=>resolve=done),openDialog:()=>assert.fail('stale dialog opened'),globalError:()=>assert.fail('stale error rendered')};
  functions('async function showCatalog(', 'function catalogFiltered(',c);
  const catalog=c.showCatalog();state.authenticated=false;state.key='';resolve({models:[{id:'private'}]});await catalog;assert.equal(state.catalog.length,0);
- vm.runInContext(source.slice(source.indexOf('async function showTest('),source.indexOf("document.querySelectorAll('dialog')")),c);
+ vm.runInContext(between(source, 'async function showTest(', "document.querySelectorAll('dialog')"),c);
  state.authenticated=true;state.key='new';const test=c.showTest(0);state.authenticated=false;resolve();await test;
 });
 
 test('late direct-test responses never restore output or evidence after logout',async()=>{
  let resolve;const nodes=new Map(),state={authenticated:true,key:'one'},button={};
  const c={state,diagnosticIdentity:()=>state.key,$:id=>{if(!nodes.has(id))nodes.set(id,{});return nodes.get(id)},api:()=>new Promise(done=>resolve=done),FormData:class{*[Symbol.iterator](){yield ['model','mock']}},toast:()=>assert.fail('stale success'),loadModelEvidence:()=>assert.fail('stale refresh'),dialogError:()=>assert.fail('stale error')};
- vm.createContext(c);vm.runInContext(source.slice(source.indexOf("$('testForm').onsubmit="),source.indexOf("$('settingsForm').onsubmit=")),c);
+ vm.createContext(c);vm.runInContext(between(source, "$('testForm').onsubmit =", "$('settingsForm').onsubmit ="),c);
  const request=c.$('testForm').onsubmit({preventDefault(){},currentTarget:{querySelector:()=>button}});
  state.authenticated=false;state.key='two';c.$('testResult').textContent='';resolve({response:'private'});await request;
  assert.equal(c.$('testResult').textContent,'');assert.equal(button.disabled,false);

@@ -3,6 +3,12 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const {test} = require('node:test');
 const script = fs.readFileSync(require('node:path').join(__dirname,'../internal/bridge/ui/console.js'),'utf8');
+// Slice the formatted console source between two unique markers; fail loudly if either moves.
+function between(text, start, end) {
+  const from = text.indexOf(start), to = text.indexOf(end, from);
+  assert.ok(from >= 0 && to > from && text.indexOf(start, from + 1) < 0, `console.js markers not found: ${start} … ${end}`);
+  return text.slice(from, to);
+}
 function fixture(api) {
  const nodes = new Map();
  const context = {state:{authenticated:true,key:'fixture',credentials:[{id:'one',label:'one'},{id:'two',label:'two'}]},
@@ -11,7 +17,7 @@ function fixture(api) {
   esc:x=>String(x??'').replace(/</g,'&lt;'),shortWhen:x=>x,when:x=>x,fmt:x=>x,
   $:id=>{if(!nodes.has(id))nodes.set(id,{});return nodes.get(id)}};
  vm.createContext(context);
- vm.runInContext(script.slice(script.indexOf('const modelEvidenceLabels='),script.indexOf('function renderModels()')),context);
+ vm.runInContext(between(script, 'const modelEvidenceLabels =', 'function renderModels()'),context);
  return context;
 }
 test('evidence selector discards delayed results from another credential',async()=>{
@@ -37,7 +43,7 @@ test('evidence escapes protocol and distinguishes source, expiry and generic den
 test('model permission failures do not log out management access',async()=>{
  const c=fixture();Object.assign(c,{AbortSignal,apiURL:x=>x,openDialog:()=>{},resetDiagnosticViews:()=>{throw Error('unexpected logout')},
  fetch:async()=>({ok:false,status:403,text:async()=>' {"error":"model permission denied"}'})});
- vm.runInContext(script.slice(script.indexOf('async function api('),script.indexOf('async function confirmed(')),c);
+ vm.runInContext(between(script, 'async function api(', 'async function confirmed('),c);
  await assert.rejects(c.api('/models/test'),/model permission denied/);
  assert.equal(c.state.authenticated,true);
 });
