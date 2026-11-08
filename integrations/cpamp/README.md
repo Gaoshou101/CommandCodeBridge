@@ -63,8 +63,8 @@ python tests/cpa_antigravity_forwarding.py --cpa /path/to/cli-proxy-api
 ## 安装
 
 1. 备份原插件动态库、CPA auth-dir、插件 data_dir 以及 CPAMP 当前管理页面。
-2. 通过支持热升级的 CPA 插件商店更新 CommandCodeBridge；确认运行版本为 `0.2.13`。从 [v0.2.13 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.13) 选择匹配平台 ZIP，并核验 `checksums.txt`。
-3. **同时升级管理页面**。同机使用上节一键入口；异机面板匹配包内 `BUILD.json` 的 CPAMP 基线时，下载 Release 的 `commandcodebridge_0.2.13_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
+2. 通过支持热升级的 CPA 插件商店更新 CommandCodeBridge；确认运行版本为 `0.2.14`。从 [v0.2.14 Release](https://github.com/Gaoshou101/CommandCodeBridge/releases/tag/v0.2.14) 选择匹配平台 ZIP，并核验 `checksums.txt`。
+3. **同时升级管理页面**。同机使用上节一键入口；异机面板匹配包内 `BUILD.json` 的 CPAMP 基线时，下载 Release 的 `commandcodebridge_0.2.14_cpamp-web.zip`，使用包内 `management.html`，按下节安装。需要自行构建时，在对应 CPAMP 源码目录应用补丁：
 
 ```bash
 python /path/to/CommandCodeBridge/integrations/cpamp/apply.py /path/to/CPA-Manager-Plus --check
