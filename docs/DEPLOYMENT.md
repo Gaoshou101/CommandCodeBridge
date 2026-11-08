@@ -199,7 +199,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 | 无法加载库 | CPA 是否含插件支持；CPU/系统/运行库是否匹配；文件是否可读 |
 | 模型可见但返回 403 | 目录不保证套餐权限，检查 `MODEL_NOT_IN_PLAN` |
 | 接口直连失败或超时 | 确认 CPA 全局代理；插件不继承 Windows 系统代理 |
-| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭。真实上游免费模型的短请求首字节约 2～3.5 秒；长推理与大上下文模型尚未实测，取值宜宽松 |
+| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭。实测 Claude／GPT 思考期间不发送数据，首字节即思考时长（难题或 57 万 tokens 上下文约 12～25 秒），grok-4.7 高等级出现过 58 秒段间间隔；启用时建议两项均 ≥120 秒。grok-4.7 等长推理可超过默认 `timeout_seconds: 600`（实测 658 秒），需要时提高到 1200～1800 |
 | 用量缺失 | 查看 `unavailable` / `status`；查询失败保留旧值 |
 | 日志写入失败 | 检查 data_dir 的磁盘空间、权限及 `storage_error` |
 | 重启后设置未按 YAML 改变 | 已存 settings.json 优先；采用明确的迁移方案 |

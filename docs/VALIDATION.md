@@ -1,5 +1,59 @@
 # 开发验证记录
 
+## 付费推理模型真实验收（2026-11-08，v0.2.13 正式包）
+
+用户授权使用付费模型、预算不设上限。全部使用 v0.2.13 正式 Windows 动态库，宿主以 CPA v8.0.23 为主；凭证仍只放在仓库外的临时文件中，用后删除。账户为 GOAT 套餐，本轮最后一次请求触发 **5 小时用量上限**（429），随即停止付费请求。超出预期的消耗主要来自长上下文用例：填充文本实际为 57 万（Claude）／31 万（GPT）tokens，远大于预估。
+
+### 可用模型
+
+GOAT 套餐可用：`claude-sonnet-5-5`、`claude-haiku-5-5`、`gpt-5.6-sol`、`deepseek/deepseek-v4-pro`、`moonshotai/Kimi-K3`、`zai-org/GLM-5.2`、`Qwen/Qwen3.7-Max`、`xai/grok-4.7`。其余被测的 Claude 4.x／Opus／Sonnet 5、GPT-5.4/5.5/6、Gemini 等返回 403 `MODEL_NOT_IN_PLAN`。上游模型目录不提供思考能力字段。
+
+### 思考等级是否生效
+
+同一道计数题，流式请求，每档 2 次（`model(level)` 后缀经 v8.0.23 原样交给插件，插件日志 `reasoning_to` 与请求等级一致）：
+
+| 模型 | low | medium | high | 结论 |
+| --- | --- | --- | --- | --- |
+| deepseek-v4-pro | 推理 777／630 tokens | — | 4,803／4,512 | 等级明显生效（约 6～7 倍） |
+| gpt-5.6-sol | 449／374 | 498／439 | 509／604 | 随等级小幅上升（均值 412／469／557） |
+| claude-sonnet-5-5 | 不思考，正文写推导 | 不思考 | 先思考后作答 | 等级改变是否思考；上游不报告思考 tokens，思考内容为空（仅签名） |
+| claude-haiku-5-5 | 2 次中 1 次思考 | — | 均思考 | 同上 |
+
+v8.0.59 上免费模型 `beam:free` 的复核见下方 v0.2.13 发版记录；付费模型在 v8.0.59 上未单独复测（宿主剥离后缀后注入等级，插件映射路径与 v8.0.23 相同）。
+
+### Claude 原生 Messages、图片、思考签名
+
+- `claude-haiku-5-5`：原生 Messages 非流式／流式、强制工具调用与结果回传、图片传输均通过。
+- `claude-sonnet-5-5`：原生 Messages、图片通过；**强制工具选择不受支持**，`tool_choice` 为 `tool`／`any` 时上游返回 400 “not supported for this model”，`auto` 正常调用工具。
+- **思考签名回放**：两模型对需要推理的题目返回带签名（2,164／3,188 字符）的空内容思考块；原样回放后的后续请求 200（非流式与流式）；篡改签名后上游返回 400，说明签名经插件完整往返且确由上游校验。
+- `tests/commandcode_live.py --thinking` 对两模型均失败：用例使用“Reply only OK.”，自适应思考模型对简单问题不思考，不产生思考块；`--tools` 对 sonnet-5-5 失败于强制工具选择。这是验收脚本假设与新模型不符，不是插件故障，脚本待调整。
+- **`model(none)`**：插件把关闭思考映射为 `thinking.type=disabled`。`claude-haiku-5-5` 接受；`claude-sonnet-5-5` 的上游拒绝 `disabled` 并提示改用 `between_tools`，而 CommandCode 的请求校验又拒绝 `between_tools`（对所有模型均返回 “Invalid input at thinking”）。因此经 CommandCode **无法关闭 sonnet-5-5 的思考**，该后缀返回 400；请求后未见凭证冷却。不传 `thinking` 时 sonnet-5-5／haiku-5-5 默认会思考。
+
+### 超时与时延
+
+流式请求，高等级（`max_tokens` 32000；长上下文用例 8000）。“首字节”为插件记录的首段上游数据时间：
+
+| 用例 | 首字节 | 首个正文 | 最大段间间隔 | 总时长 |
+| --- | --- | --- | --- | --- |
+| sonnet-5-5 难题 | 14.8 s | 14.8 s | 0.1 s | 18.3 s |
+| haiku-5-5 难题 | 17.3 s | 17.3 s | 0.02 s | 17.3 s |
+| gpt-5.6-sol 难题 | 11.8 s | 11.8 s | 0.2 s | 12.0 s |
+| deepseek-v4-pro 难题 | 2.0 s | 105.8 s | 0.2 s | 105.9 s |
+| Kimi-K3 难题 | 1.6 s | 94.7 s | 0.4 s | 94.7 s |
+| GLM-5.2 难题 | 1.6 s | 133.7 s | 0.2 s | 133.8 s |
+| Qwen3.7-Max 难题 | 1.9 s | 140.9 s | 3.1 s | 141.0 s |
+| grok-4.7 难题 | 2.7 s | 658.1 s | **58.5 s** | **658.1 s** |
+| sonnet-5-5 57 万 tokens 上下文 | 24.6 s | 24.7 s | 0.05 s | 25.1 s |
+| gpt-5.6-sol 31 万 tokens 上下文 | 13.5 s | 13.6 s | 0.2 s | 13.8 s |
+
+- Claude 与 GPT 在思考期间**不向客户端发送任何数据**（Claude 连 `message_start` 都在思考结束后才到），首字节等于全部思考时间；DeepSeek／Kimi／GLM／Qwen／Grok 约 2 秒内开始流式输出推理内容。
+- `grok-4.7` 高等级难题用时 658 秒，超过默认 `timeout_seconds: 600`，在默认配置下会被整体超时截断为 504；其输出中出现过 58 秒无数据的间隔。
+- 据此，启用停滞保护时建议首字节 ≥120 秒、流空闲 ≥120 秒；长推理（尤其 grok-4.7）应把 `timeout_seconds` 提高到 1200～1800。两项停滞保护仍默认关闭。
+
+### count_tokens 与真实客户端
+
+真实 Claude Code 2.1.316 以隔离配置目录接入隔离 CPA（模拟上游，不消耗额度），在 v8.0.23 与 v8.0.59 上各运行一次 `-p` 普通请求和 `/context`：每个宿主上两条命令合计发出 24 次 `POST /v1/messages/count_tokens`，全部收到插件本地 404，未访问上游；两条命令均以 success 结束，`/v1/messages` 正常 200，凭证未冷却。
+
 ## 控制台源码可读化（2026-11-08，未发布源码）
 
 `internal/bridge/ui/console.js`、`console.css` 原为长行手写压缩风格（JS 266 行、最长 1,709 字符；CSS 16 行、最长 4,024 字符），改为 Prettier 3.7.4 格式化的源码（JS 1,574 行、CSS 1,854 行），配置见 `.prettierrc.json`。
