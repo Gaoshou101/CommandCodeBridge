@@ -120,8 +120,8 @@ plugins:
             self.base + path, data=None if body is None else json.dumps(body).encode(),
             headers=headers, method=method or ("GET" if body is None else "POST"))
 
-    def call(self, path, body=None, method=None, management=True, stream=False):
-        with urllib.request.urlopen(self.request(path, body, method, management), timeout=30) as response:
+    def call(self, path, body=None, method=None, management=True, stream=False, timeout=30):
+        with urllib.request.urlopen(self.request(path, body, method, management), timeout=timeout) as response:
             raw = response.read().decode()
             return raw if stream else json.loads(raw)
 

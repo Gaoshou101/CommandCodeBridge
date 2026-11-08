@@ -1,10 +1,19 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.14] - 2026-11-08
+
+### Fixed
+
+- `claude-sonnet-5-5` 上的 `model(none)`（或原生 Messages 请求体中的 `thinking.type=disabled`）不再直接返回 400。该模型的上游拒绝 `disabled`、要求改用 `between_tools`，而 CommandCode 的请求校验又对所有模型拒绝 `between_tools`，经 CommandCode 无法关闭它的思考。插件现识别这一 400，改用最接近的可接受请求（自适应思考，`effort=low`）重试一次；请求日志新增 `adjustments` 字段，控制台请求详情显示「兼容调整」，`reasoning_to` 记为 `low`。低强度下模型对简单问题通常不思考（实测），但不能保证完全不思考。`claude-haiku-5-5` 接受 `disabled`，不受影响。
+- `claude-sonnet-5-5` 不支持强制工具选择：`tool_choice` 为 `tool`／`any` 时上游返回 400 “not supported”。插件现改为 `auto`（保留工具列表与 `disable_parallel_tool_use`）重试一次并同样记录。`auto` 下模型仍可能不调用工具，客户端需能处理普通回复。
+- 以上两项只作用于 Messages 协议模型、只匹配上述上游 400；其他错误照常返回，不重试。重试发生在向客户端输出任何内容之前，统计中仍计为一次请求。重试被接受后，插件在本进程内记住该模型，之后的请求直接改写、不再先失败一次；重启或修改 `base_url` 后重新探测，重试仍失败时不记住。2026-11-08 已对真实上游复测（见验证记录）。
 
 ### Changed
 
+- 默认 `timeout_seconds` 从 600 改为 **1800**（取值范围不变）。实测 `grok-4.7` 高等级推理用时 658 秒，旧默认会把它截断为 504。只影响新安装或从未保存过设置的实例：`settings.json` 优先于 YAML，已保存过设置的实例保留原值（通常为 600），需在「设置 → 请求策略 → 请求超时」手动改为 1800。设置页说明同步提示。
+- `tests/commandcode_live.py`：thinking 用例改用需要推理的计数题并请求 `effort=high`（自适应模型对“Reply only OK.”不思考）；新增 `--thinking-off`（发送 `model(none)`）和 `--request-timeout`（默认 300 秒，此前插件超时固定 120 秒、客户端读超时 30 秒）。每个请求记录插件做出的兼容调整，出现预期外的调整即失败；失败报告带最后执行的检查名。`cpa_round2.py` 让模拟上游按 sonnet-5-5 的方式拒绝两类请求，经真实 CPA 宿主端到端验证重试、日志和计数。
 - 插件控制台的 `console.js`、`console.css` 改为 Prettier 3.7.4 格式化的可读源码（原为长行手写压缩风格），按原样内嵌；JS 语法树与原文件一致（仅去掉空语句），CSS 仅引号、属性选择器引号和小数前导零写法变化。控制台页面增大约 17 KB，未加入压缩步骤。CI 检查这两个文件的格式；Node 测试改为按唯一标记切片，标记缺失时直接失败。
+- 热升级联测的前一版本改为 v0.2.13。部署说明新增 Claude 模型 403「The provider refused this request」的排查提示：实测与出口有关（香港出口拒绝、日本出口正常），不是插件故障。
 
 ## [0.2.13] - 2026-11-07
 

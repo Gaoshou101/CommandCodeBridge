@@ -1,6 +1,29 @@
 # CommandCodeBridge 发布说明
 
-## v0.2.13
+## v0.2.14
+
+发布日期：2026-11-08。CPA 原生插件，C ABI 1 / RPC schema 6；调用官方 Provider API。
+
+### 本次更新
+
+- **sonnet-5-5 的 `model(none)`**：该模型的上游拒绝 `thinking.type=disabled` 并要求改用 `between_tools`，而 CommandCode 的请求校验对所有模型拒绝 `between_tools`，经 CommandCode 无法关闭它的思考。插件现识别这一 400，改用自适应思考 + `effort=low` 重试一次。低强度下模型对简单问题通常不思考（实测），但不能保证。
+- **sonnet-5-5 的强制工具选择**：`tool_choice` 为 `tool`／`any`（含 Chat 客户端的 `required`）时上游返回 400，插件改为 `auto`（保留工具列表与 `disable_parallel_tool_use`）重试一次。
+- 两项只匹配上述上游 400、只作用于 Messages 协议模型；重试发生在任何输出之前，统计计为一次请求。重试被接受后本进程内记住该模型，重启或修改 `base_url` 后重新探测。请求日志新增 `adjustments`，控制台请求详情显示「兼容调整」。
+- **默认超时改为 1800 秒**：实测 grok-4.7 高等级推理用时 658 秒，旧默认 600 秒会截断为 504。
+- 验收脚本改用需要推理的思考用例，新增 `--thinking-off`、`--request-timeout`；控制台 `console.js`／`console.css` 改为可读源码（#17）。
+
+### 升级步骤
+
+1. 更新插件至 **v0.2.14**，确认实际运行版本。无需修改配置。
+2. 已保存过设置的实例仍使用原超时（通常 600 秒），需要时在「设置 → 请求策略 → 请求超时」改为 1800。
+3. 本次未改变 CPAMP 页面功能；页面带插件版本标识，仍建议在「设置 → CPAMP 原生面板」更新页面，异机／独立容器使用 `commandcodebridge_0.2.14_cpamp-web.zip`。
+4. Claude 模型返回 403「The provider refused this request」与插件无关，实测与出口有关，见部署说明 v0.2.14 第 5 条。
+
+### 下载与校验
+
+四平台原生 ZIP、独立 CPAMP 前端 ZIP、五个 `.zip.sha256` 和统一 `checksums.txt`，共 **11 个资产**。CPA 发布门槛仍为 v8.0.23，热升级联测的前一版本改为 v0.2.13；v8.0.59 在 Windows 本地完成全套宿主联测。合并前以同一源码构建的 Windows 动态库对真实上游完成付费复测（sonnet-5-5、haiku-5-5），详见验证记录；未访问或修改任何部署服务器。
+
+## 已发布 v0.2.13
 
 发布日期：2026-11-07。CPA 原生插件，C ABI 1 / RPC schema 6；调用官方 Provider API。
 

@@ -834,6 +834,14 @@ function logHTML(x) {
     date = x.time ? new Date(x.time) : null;
   return `<button class="log-main" data-log-detail="${esc(x.id)}" aria-label="查看 ${esc(x.model)} ${esc(when(x.time))} ${status} 请求详情"><span class="log-cell"><span class="cell-label">时间</span><span>${esc(date ? date.toLocaleTimeString('zh-CN', { hour12: false }) : '未知')}</span><span class="small block">${esc(date ? date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) : '未知')}</span></span><span class="log-cell"><span class="cell-label">模型</span><span class="code log-model">${esc(x.model)}</span><span class="small code block">${esc(x.upstream_model || '—')}</span></span><span class="log-cell"><span class="badge ${tone}">${status}</span><span class="small block">${esc(x.status)} · ${x.stream ? '流式' : '非流式'}</span></span><span class="log-cell"><span class="cell-label">凭据 / 渠道</span><span>${esc(x.credential || '未知凭据')}</span><span class="small block">${esc(provider)}</span></span><span class="log-cell log-latency">${latencyHTML('首字', x.ttft_ms, local, 1500)}${latencyHTML('耗时', x.duration_ms, local, 10000)}</span><span class="log-cell"><span class="cell-label">输入 / 输出 tokens</span><span>${usage ? fmt(x.prompt_tokens) + ' / ' + fmt(x.completion_tokens) : '—'}</span><span class="small block">缓存 ${usage ? fmt(x.cached_tokens) : '—'}</span></span><span class="chevron" aria-hidden="true">›</span></button>`;
 }
+const adjustmentLabels = {
+  'thinking_off_unsupported:adaptive_low': '模型不支持关闭思考，已改为自适应低强度',
+  'forced_tool_choice_unsupported:auto': '模型不支持强制工具选择，已改为 auto',
+};
+function logAdjustments(x) {
+  const items = Array.isArray(x.adjustments) ? x.adjustments : [];
+  return items.length ? items.map((item) => adjustmentLabels[item] || item).join('；') : '无';
+}
 function logDetailHTML(x) {
   const { local, status, tone, provider, usage, reasoning, speed } = logPresentation(x);
   const route = [
@@ -845,6 +853,7 @@ function logDetailHTML(x) {
     ['客户端 / 上游协议', (x.client_protocol || '未知') + ' / ' + (x.upstream_protocol || '未知')],
     ['ZDR 请求', x.zdr_requested ? '已请求，保留策略待官方核实' : '未请求'],
     ['思考映射', reasoning],
+    ['兼容调整', logAdjustments(x)],
     ['响应状态', x.status],
     ['流终态', x.stream_end || '—'],
     ['重试时间', x.retry_at ? when(x.retry_at) : '—'],

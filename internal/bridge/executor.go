@@ -410,6 +410,11 @@ func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 			release(e)
 			return early(e)
 		}
+		for _, adjustment := range s.anthropicLimits.known(m.UpstreamID) {
+			if applyAdjustment(body, adjustment) {
+				noteAdjustment(&entry, adjustment)
+			}
+		}
 	} else {
 		opts := object(body["stream_options"])
 		if opts == nil {
@@ -428,19 +433,35 @@ func (s *Service) execute(r ExecutorRequest, stream bool) (any, error) {
 			firstByteDeadline, headerDeadline, headerTimeout = at, at, errFirstByteTimeout()
 		}
 	}
-	up, e := s.openUpstreamUntil(map[string]any{"host_callback_id": r.HostCallbackID, "method": "POST", "url": executionConfig.BaseURL + path, "headers": upstreamHeaders(c, executionConfig.ZDR), "body": jsonBytes(body)}, headerDeadline, headerTimeout)
-	if e != nil {
+	var up upstreamStream
+	var pending []string
+	for {
+		up, e = s.openUpstreamUntil(map[string]any{"host_callback_id": r.HostCallbackID, "method": "POST", "url": executionConfig.BaseURL + path, "headers": upstreamHeaders(c, executionConfig.ZDR), "body": jsonBytes(body)}, headerDeadline, headerTimeout)
+		if e != nil {
+			release(e)
+			return early(e)
+		}
+		if up.StatusCode >= 200 && up.StatusCode < 300 {
+			for _, adjustment := range pending {
+				s.anthropicLimits.learn(m.UpstreamID, adjustment)
+			}
+			break
+		}
+		_, e = s.readJSON(up)
+		e = redactError(e, c.APIKey)
+		// A known model limit is retried with the nearest accepted request and
+		// remembered only once that request is accepted. Each adjustment applies
+		// at most once, so this loop is bounded.
+		if adjustment := rejectedAdjustment(e, body); anthropic && adjustment != "" && applyAdjustment(body, adjustment) {
+			pending = append(pending, adjustment)
+			noteAdjustment(&entry, adjustment)
+			continue
+		}
 		release(e)
 		return early(e)
 	}
 	up.deadline, up.firstByteDeadline = overall, firstByteDeadline
 	up.idleTimeout = time.Duration(executionConfig.IdleTimeoutSeconds) * time.Second
-	if up.StatusCode < 200 || up.StatusCode >= 300 {
-		_, e = s.readJSON(up)
-		e = redactError(e, c.APIKey)
-		release(e)
-		return early(e)
-	}
 	if !strings.Contains(strings.ToLower(up.Headers.Get("Content-Type")), "text/event-stream") {
 		s.closeUpstream(up.StreamID)
 		e = fail(502, "upstream returned non-SSE content for a streaming request")

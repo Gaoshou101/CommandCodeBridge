@@ -1,6 +1,14 @@
 # CPAMP 部署、升级与回滚
 
-本文说明 CommandCodeBridge v0.2.13 的安装、页面更新与回滚。路径应以实际运行环境为准；历史排查中的路径仅用于说明当时的问题。
+本文说明 CommandCodeBridge v0.2.14 的安装、页面更新与回滚。路径应以实际运行环境为准；历史排查中的路径仅用于说明当时的问题。
+
+## v0.2.14：Claude 兼容调整与默认超时
+
+1. 更新插件至 v0.2.14，确认实际运行版本；配置无需修改。
+2. 默认 `timeout_seconds` 改为 1800，只对新安装或从未保存过设置的实例生效。已保存过设置的实例仍使用 `settings.json` 中的值（通常为 600），长推理模型会被截断为 504（实测 grok-4.7 高等级推理约 11 分钟）；需要时在「设置 → 请求策略 → 请求超时」改为 1800。
+3. 对 `claude-sonnet-5-5` 使用 `model(none)` 或强制工具选择的客户端无需改动；请求日志的 `adjustments` 与控制台「兼容调整」显示插件所做的改写。`auto` 下模型仍可能不调用工具，客户端需能处理普通回复。
+4. 页面功能未变，但页面带插件版本标识，仍按下节步骤更新 CPAMP 页面并强刷浏览器。
+5. Claude 模型返回 403 `permission_error`「The provider refused this request」与插件版本无关，实测与出口有关：2026-11-08 同一密钥从香港出口请求两款 Claude 模型（含不经插件的直连）均返回该 403，经日本出口恢复正常，其他模型不受影响。CPA v8.0.23 会因该 403 冷却凭证上的这个模型，随后同模型返回 503 `auth_unavailable`。改用合适出口的代理后，重启 CPA 清除冷却。
 
 ## v0.2.13：glibc 2.28、写盘与超时保护
 
@@ -199,7 +207,8 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 | 无法加载库 | CPA 是否含插件支持；CPU/系统/运行库是否匹配；文件是否可读 |
 | 模型可见但返回 403 | 目录不保证套餐权限，检查 `MODEL_NOT_IN_PLAN` |
 | 接口直连失败或超时 | 确认 CPA 全局代理；插件不继承 Windows 系统代理 |
-| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭。实测 Claude／GPT 思考期间不发送数据，首字节即思考时长（难题或 57 万 tokens 上下文约 12～25 秒），grok-4.7 高等级出现过 58 秒段间间隔；启用时建议两项均 ≥120 秒。grok-4.7 等长推理可超过默认 `timeout_seconds: 600`（实测 658 秒），需要时提高到 1200～1800 |
+| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭。实测 Claude／GPT 思考期间不发送数据，首字节即思考时长（难题或 57 万 tokens 上下文约 12～25 秒），grok-4.7 高等级出现过 58 秒段间间隔；启用时建议两项均 ≥120 秒。grok-4.7 等长推理可超过 600 秒（实测 658 秒）。`timeout_seconds` 默认值自 v0.2.14 起为 1800；此前保存过设置的实例仍是 `settings.json` 中的旧值（通常 600），需在「设置 → 请求策略 → 请求超时」手动提高 |
+| `model(none)` 或强制工具选择的请求日志显示「兼容调整」 | 部分 Claude 模型（实测 `claude-sonnet-5-5`）经 CommandCode 不能关闭思考，也不支持 `tool_choice` 为 `tool`／`any`。插件把上游的 400 改为自适应低强度思考或 `auto` 后重试一次，在日志 `adjustments` 中记录，并在本进程内记住该模型；重启或改 `base_url` 后重新探测 |
 | 用量缺失 | 查看 `unavailable` / `status`；查询失败保留旧值 |
 | 日志写入失败 | 检查 data_dir 的磁盘空间、权限及 `storage_error` |
 | 重启后设置未按 YAML 改变 | 已存 settings.json 优先；采用明确的迁移方案 |
@@ -249,7 +258,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 本轮没有真实账号调用。可先运行无网络预览：
 
 ```sh
-python tests/commandcode_live.py --dry-run --generate --chat-model YOUR_CHAT_MODEL --messages-model YOUR_CLAUDE_MODEL --tools --image --thinking --thinking-mode adaptive --zdr --max-requests 13 --max-tokens 2048
+python tests/commandcode_live.py --dry-run --generate --chat-model YOUR_CHAT_MODEL --messages-model YOUR_CLAUDE_MODEL --tools --image --thinking --thinking-off --thinking-mode adaptive --zdr --max-requests 14 --max-tokens 2048
 ```
 
-实际执行需要仓库外 JSON 凭据文件（`api_key`）、CPA／动态库环境变量及明确允许的模型和请求预算，再去掉 `--dry-run` 并添加 `--credential-file`、`--report`。可分组降低预算；所有组合最多 13 次，本脚本硬限制最多 20 次、每次至多 8192 输出 tokens。实际收费规则以上游为准；ZDR 请求被接受也不能证明服务端保留策略。个人／组织与多 key 的共享身份仍待真实验收，因此采样保持逐凭据隔离。
+实际执行需要仓库外 JSON 凭据文件（`api_key`）、CPA／动态库环境变量及明确允许的模型和请求预算，再去掉 `--dry-run` 并添加 `--credential-file`、`--report`。可分组降低预算；所有组合最多 14 次，`--request-timeout` 默认每次 300 秒（10–1800）。thinking 用例使用需要推理的计数题，`--thinking-off` 发送 `model(none)`；报告逐项列出插件的兼容调整（如强制工具选择改为 `auto`），出现预期外的调整即失败。本脚本硬限制最多 20 次、每次至多 8192 输出 tokens。实际收费规则以上游为准；ZDR 请求被接受也不能证明服务端保留策略。个人／组织与多 key 的共享身份仍待真实验收，因此采样保持逐凭据隔离。

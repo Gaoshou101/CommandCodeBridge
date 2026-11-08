@@ -1,5 +1,34 @@
 # 开发验证记录
 
+## v0.2.14 合并前真实上游复测（2026-11-08）
+
+使用 PR #18 head `dbb2fc4` 在 WSL 交叉编译的 Windows 动态库（版本号仍为 0.2.13，源码与发版仅差版本号和文档），宿主 CPA v8.0.23；凭证只放在仓库外的临时文件中，用后删除。
+
+- **出口导致的 403**：首次复测时两款 Claude 模型均返回 403 `permission_error`「The provider refused this request. The refused request wasn't charged.」，不经插件直连上游也一样；同一时间 `gpt-5.6-sol`、`deepseek-v4-pro` 返回 200，账户额度正常（5 小时窗口几乎未用）。当时本机出口为香港（Cloudflare `colo=HKG`，IPv4／IPv6 相同）。只让测试 CPA 经日本出口的代理后，同一密钥的 Claude 请求恢复 200。插件对该 403 不做兼容调整（符合设计）；CPA v8.0.23 把它当作凭证故障，同模型随后返回 503 `auth_unavailable`。部署说明已加入排查提示。
+- **上游报错原文**（直连）：`thinking.type=disabled` → 400「To turn thinking off on this model, send "thinking": {"type": "between_tools"} instead of {"type": "disabled"}…」；`tool_choice` 为 `tool`／`any` → 400「tool_choice: type "tool" and "any" are not supported for this model.」（CommandCode 把上游错误 JSON 作为字符串放在 `message` 中）。两者均命中现有匹配规则，无需修改。`auto` 返回 200 并调用工具；haiku-5-5 接受强制工具。
+- **兼容探测**（经插件，10 次请求全部 200）：
+  - sonnet `(none)` 首次：日志 `adjustments=[thinking_off_unsupported:adaptive_low]`、`reasoning_to=low`，返回纯文本；第二次直接改写（1.7 s，首次含被拒请求 2.7 s）；Chat 客户端同样改写，回复无推理内容。
+  - sonnet 强制工具 `tool` 首次、`any`、Chat 客户端 `required`：均记录 `forced_tool_choice_unsupported:auto`，模型调用了 `read_file` 且参数正确。
+  - haiku `(none)` 与强制工具：无调整，`reasoning_to=none`。
+  - 重启 CPA 后的流式请求：两项都在输出前重试成功，流式 200；统计 10／10 成功且均有用量。
+- **验收脚本** `commandcode_live.py --generate --tools --thinking --thinking-off --max-tokens 2048 --max-requests 7`：haiku-5-5 7／7 PASS（无调整，4,052 tokens）；sonnet-5-5 7／7 PASS（工具调用 1 次 `forced_tool_choice_unsupported:auto`、关闭思考 1 次 `thinking_off_unsupported:adaptive_low`，2,379 tokens）；两者 CPA 用量计数与插件统计一致。
+
+升版本号后的本地验证：Windows `go test`／`go vet`／gofmt、WSL Linux `go test -race`、Node 32 项、Prettier、CPAMP 页面校验 6 项通过；在固定基线源码上重建并内嵌 0.2.14 页面，WSL 交叉编译的 Windows 动态库在 CPA v8.0.23 与 v8.0.59 上跑完 9 项宿主联测（含 v0.2.13 正式包 → 新库热升级），18／18 通过。
+
+**尚未验证**：付费模型在 CPA v8.0.59 上的复测（宿主剥离后缀后注入等级，插件映射路径相同）；sonnet-5-5 低强度下“不思考”只是抽样观察，不作保证。
+
+## 真实验收发现的兼容修复（2026-11-08，v0.2.14）
+
+针对下方付费验收发现的三个问题：
+
+- **`model(none)` 与 sonnet-5-5**：插件识别上游“改用 `between_tools`”的 400，改为自适应思考 + `effort=low` 重试一次，日志 `adjustments` 记录 `thinking_off_unsupported:adaptive_low`，`reasoning_to` 记为 `low`。依据：实测自适应低强度下 sonnet-5-5 对简单题不思考（见下方思考等级表）；`between_tools` 被 CommandCode 校验拒绝，无法使用。
+- **强制工具选择与 sonnet-5-5**：识别 `tool_choice` “not supported” 的 400，改为 `auto`（保留工具列表与 `disable_parallel_tool_use`）重试一次，记录 `forced_tool_choice_unsupported:auto`。依据：实测 `auto` 在明确要求时会调用该工具。
+- 两项只作用于 Messages 协议模型和上述上游 400；重试在任何输出之前，统计计为一次请求。重试被接受后本进程内记住该模型，后续请求直接改写；重启或改 `base_url` 后重新探测；重试仍失败时不记住。
+- **默认超时**：`timeout_seconds` 默认改为 1800（grok-4.7 实测 658 秒）。已保存过设置的实例仍使用 `settings.json` 中的值，需手动修改；未做自动迁移，以免覆盖用户有意设置的 600。
+- **验收脚本**：`commandcode_live.py` 的 thinking 用例改用计数题 + `effort=high`，新增 `--thinking-off` 与 `--request-timeout`，逐请求记录兼容调整。
+
+本地验证（Windows Go 1.27.2 + WSL Linux）：新增 8 个 Go 单元测试覆盖重试、记住与重启遗忘、失败不记住、其他错误不重试、两项同时发生（流式）、Chat 协议不受影响和默认超时；`go test -race ./...`（WSL Linux）、`go vet`、gofmt、Node 32 项、Prettier 检查通过。`cpa_round2.py` 新增模拟 sonnet-5-5 拒绝的端到端用例。WSL 交叉编译的 Windows 动态库在 CPA v8.0.23 与 v8.0.59 上跑完 9 项宿主联测（含 v0.2.12 → 新库热升级），18/18 通过；新用例中 5 次客户端请求对应 2 次上游拒绝与重试，统计与 CPA 用量队列均计 5 次。真实上游复测见上节。
+
 ## 付费推理模型真实验收（2026-11-08，v0.2.13 正式包）
 
 用户授权使用付费模型、预算不设上限。全部使用 v0.2.13 正式 Windows 动态库，宿主以 CPA v8.0.23 为主；凭证仍只放在仓库外的临时文件中，用后删除。账户为 GOAT 套餐，本轮最后一次请求触发 **5 小时用量上限**（429），随即停止付费请求。超出预期的消耗主要来自长上下文用例：填充文本实际为 57 万（Claude）／31 万（GPT）tokens，远大于预估。

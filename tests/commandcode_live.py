@@ -2,7 +2,11 @@
 
 --dry-run prints the request budget without credentials or network requests.
 The report contains no prompts, response content, signatures or account IDs.
+Each generated request records the compatibility adjustments the bridge made
+(for example forced tool choice falling back to auto on models that reject
+it); unexpected adjustments fail the run. A failed run names the last check.
 """
+from collections import Counter
 import argparse
 import base64
 import json
@@ -16,6 +20,14 @@ from datetime import datetime, timezone
 from cpa_e2e import ROOT
 from cpa_harness import API, CPAHost
 
+ADJUST_THINKING_OFF = "thinking_off_unsupported:adaptive_low"
+ADJUST_FORCED_TOOL = "forced_tool_choice_unsupported:auto"
+KNOWN_ADJUSTMENTS = {ADJUST_THINKING_OFF, ADJUST_FORCED_TOOL}
+# Adaptive-thinking models do not think about trivial prompts such as
+# "Reply only OK."; this short problem reliably needs reasoning.
+REASONING_PROMPT = ("Count the ordered pairs of positive integers (a, b) with a <= 60 and b <= 60 "
+                    "such that a^2 + b^2 is divisible by 13. Answer with the number only.")
+
 
 def image_fixture():
     def chunk(kind, data):
@@ -26,9 +38,9 @@ def image_fixture():
 
 
 def generation_plan(args):
-    if not 1 <= args.max_requests <= 20 or not 32 <= args.max_tokens <= 8192:
-        raise ValueError("Request/token limits are outside the supported bounds")
-    if any((args.image, args.thinking)) and not args.messages_model:
+    if not 1 <= args.max_requests <= 20 or not 32 <= args.max_tokens <= 8192 or not 10 <= args.request_timeout <= 1800:
+        raise ValueError("Request/token/timeout limits are outside the supported bounds")
+    if any((args.image, args.thinking, args.thinking_off)) and not args.messages_model:
         raise ValueError("Image/thinking checks require --messages-model")
     if args.thinking and args.max_tokens < 2048:
         raise ValueError("Thinking requires an explicit --max-tokens of at least 2048")
@@ -45,6 +57,8 @@ def generation_plan(args):
             cases += [("Messages image", args.messages_model, 1)]
         if args.thinking:
             cases += [("thinking signature replay", args.messages_model, 2)]
+        if args.thinking_off:
+            cases += [("thinking off", args.messages_model, 1)]
     count = sum(case[2] for case in cases)
     if args.generate and (not count or count > args.max_requests):
         raise ValueError("Selected cases exceed --max-requests or no model was selected")
@@ -52,6 +66,7 @@ def generation_plan(args):
             "generation_enabled": args.generate, "planned_requests": count if args.generate else 0,
             "maximum_output_tokens": count * args.max_tokens if args.generate else 0,
             "max_requests": args.max_requests, "max_tokens_per_request": args.max_tokens,
+            "request_timeout_seconds": args.request_timeout,
             "zdr_requested": args.zdr, "retention_policy": "unverified"}
 
 
@@ -71,7 +86,7 @@ def run(args):
     if not isinstance(key, str) or not key.strip():
         raise ValueError("Credential file has no API key")
     proxy = urllib.request.getproxies().get("https") if args.system_proxy else None
-    with CPAHost(base_url="https://api.commandcode.ai", timeout=120, proxy_url=proxy) as host:
+    with CPAHost(base_url="https://api.commandcode.ai", timeout=args.request_timeout, proxy_url=proxy) as host:
         cid = host.credential(key, "live verification account")
         host.call(API + "/config", {"zdr": args.zdr}, method="PUT")
         if not args.skip_usage:
@@ -93,12 +108,13 @@ def run(args):
         aliases = {m["upstream_id"]: m["id"] for m in selected}
         count = 0
 
-        def call(check, upstream, path, body, stream=False):
+        def call(check, upstream, path, body, stream=False, suffix="", allowed=()):
             nonlocal count
             assert count < args.max_requests
             count += 1
-            result = host.call(path, {**body, "model": aliases[upstream], "stream": stream},
-                               management=False, stream=stream)
+            report["last_check"] = check
+            result = host.call(path, {**body, "model": aliases[upstream] + suffix, "stream": stream},
+                               management=False, stream=stream, timeout=args.request_timeout + 30)
             if stream:
                 assert ("message_stop" if path.endswith("messages") else
                         "response.completed" if path.endswith("responses") else "[DONE]") in result
@@ -108,8 +124,12 @@ def run(args):
                 assert result["status"] == "completed"
             else:
                 assert result["choices"][0]["message"]
+            # Logs are newest first; streamed requests are logged when the stream ends.
+            host.wait(lambda: len(host.logs()) >= count, "request log")
+            adjustments = host.logs()[0].get("adjustments") or []
+            assert set(adjustments) <= set(allowed), "unexpected compatibility adjustment"
             model = next(m for m in selected if m["upstream_id"] == upstream)
-            report["results"].append({"check": check, "model": upstream, "status": "PASS",
+            report["results"].append({"check": check, "model": upstream, "status": "PASS", "adjustments": adjustments,
                 "client_protocol": path, "upstream_protocol": "messages" if "/messages" in model["supported_endpoints"] and "/chat/completions" not in model["supported_endpoints"] else "chat-completions",
                 "stream": stream, "zdr_requested": args.zdr,
                 "upstream_accepted": True, "retention_policy": "unverified"})
@@ -141,7 +161,8 @@ def run(args):
                 first = {**base, "messages": [{"role": "user", "content": "Call read_file with path a.txt."}],
                          "tools": [{"name": "read_file", "description": "Read the synthetic a.txt fixture", "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}],
                          "tool_choice": {"type": "tool", "name": "read_file"}}
-                result = call("Messages tool call", args.messages_model, "/v1/messages", first)
+                # Models that reject forced tool choice are retried with auto by the bridge.
+                result = call("Messages tool call", args.messages_model, "/v1/messages", first, allowed=(ADJUST_FORCED_TOOL,))
                 tc = next(block for block in result["content"] if block["type"] == "tool_use")
                 assert tc["name"] == "read_file" and tc["input"].get("path") == "a.txt"
                 call("Messages tool result", args.messages_model, "/v1/messages", {**first, "tool_choice": {"type": "auto"},
@@ -153,11 +174,19 @@ def run(args):
                                  {"type": "text", "text": "Describe this image briefly."}]}]})
             if args.thinking:
                 thinking = {"type": "enabled", "budget_tokens": 1024} if args.thinking_mode == "budget" else {"type": "adaptive"}
-                first = {**base, "thinking": thinking}
+                question = [{"role": "user", "content": REASONING_PROMPT}]
+                first = {**base, "messages": question, "thinking": thinking}
+                if args.thinking_mode == "adaptive":
+                    first["output_config"] = {"effort": "high"}
                 result = call("thinking signature", args.messages_model, "/v1/messages", first)
-                assert any(b["type"] == "thinking" and b.get("signature") for b in result["content"])
+                assert any(b["type"] == "thinking" and b.get("signature") for b in result["content"]), "no signed thinking block"
                 call("thinking signature replay", args.messages_model, "/v1/messages", {**first,
-                    "messages": [*prompt, {"role": "assistant", "content": result["content"]}, {"role": "user", "content": "Reply only OK again."}]})
+                    "messages": [*question, {"role": "assistant", "content": result["content"]}, {"role": "user", "content": "Reply only OK."}]})
+            if args.thinking_off:
+                # model(none) asks to disable thinking; models that cannot are retried
+                # with adaptive low effort and the substitution is logged.
+                result = call("thinking off", args.messages_model, "/v1/messages", base, suffix="(none)", allowed=(ADJUST_THINKING_OFF,))
+                report["results"][-1]["thinking_blocks"] = sum(b["type"] == "thinking" for b in result["content"])
         assert count == plan["planned_requests"]
         host.wait(lambda: host.call(API + "/statistics")["totals"]["requests"] == count, "live accounting")
         stats = host.call(API + "/statistics")["totals"]
@@ -165,6 +194,7 @@ def run(args):
         logs = host.logs()
         assert len(logs) == count and all(r["source"] == "cpa_request" and r["status"] == 200 and r["usage_reported"] for r in logs)
         assert all(r["zdr_requested"] == args.zdr and r["client_protocol"] in ("messages", "responses", "chat-completions") for r in logs)
+        assert all(set(r.get("adjustments") or []) <= KNOWN_ADJUSTMENTS for r in logs)
         if args.chat_model:
             assert sum(r["client_protocol"] == "responses" for r in logs) == 2
         cpa_usage = []
@@ -176,7 +206,9 @@ def run(args):
         assert sum(r["tokens"]["total_tokens"] for r in cpa_usage) == stats["input_tokens"] + stats["output_tokens"]
         for file in host.data.glob("*.json*"):
             assert key not in file.read_text(), "Credential persisted in runtime data"
-        report.update(status="PASS", requests=count, tokens=stats["input_tokens"] + stats["output_tokens"], CPA_accounting_matches=True)
+        report.pop("last_check", None)
+        report.update(status="PASS", requests=count, tokens=stats["input_tokens"] + stats["output_tokens"], CPA_accounting_matches=True,
+                      adjustments=dict(Counter(a for r in report["results"] for a in r["adjustments"])))
         return report
 
 
@@ -184,13 +216,14 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--credential-file", type=pathlib.Path)
     p.add_argument("--report", type=pathlib.Path)
-    for flag in ("generate", "dry-run", "skip-usage", "system-proxy", "tools", "image", "thinking", "zdr"):
+    for flag in ("generate", "dry-run", "skip-usage", "system-proxy", "tools", "image", "thinking", "thinking-off", "zdr"):
         p.add_argument("--" + flag, action="store_true")
     p.add_argument("--chat-model")
     p.add_argument("--messages-model")
     p.add_argument("--thinking-mode", choices=("adaptive", "budget"), default="adaptive")
     p.add_argument("--max-requests", type=int, default=8)
     p.add_argument("--max-tokens", type=int, default=128)
+    p.add_argument("--request-timeout", type=int, default=300, help="seconds per generated request (10-1800)")
     return p
 
 
