@@ -1,5 +1,24 @@
 # 开发验证记录
 
+## v0.2.14 发版记录（2026-11-08）
+
+用户确认“验证后合并发版”。下方“合并前真实上游复测”一节保留为当轮状态。本次未部署或访问任何服务器。
+
+### 发版
+
+- PR #18 以 squash 合并为 `02d19ceefacc7a98cb527bd9453cc87758fad836`，合并提交的源码树与 CI 全绿的分支头 `34b34b8` 一致。附注标签 `v0.2.14` 指向该提交。
+- [标签 CI](https://github.com/Gaoshou101/CommandCodeBridge/actions/runs/42483261385) 9 项任务全部通过（含 v0.2.13 → v0.2.14 热升级联测、最新 CPA 候选联测与发布），`main` 推送 CI 同样通过。
+- 公开 Release 已设为 Latest，共 **11 个资产**。下载全部资产，SHA-256 与 GitHub 记录的 digest 逐个一致，`checksums.txt` 与各 `.zip.sha256` 逐行一致；四平台包与独立页面包 `BUILD.json` 版本均为 0.2.14、来源提交均为 `02d19ce` 且工作区干净，两个 Linux 包 `glibc_minimum` 为 2.28。
+- `tests/cpa_store_install.py` 在隔离 Windows CPA **v8.0.23** 与 **v8.0.59** 中均通过：匿名公开源发现、选择 v0.2.14 Release、校验安装、重启加载并报告 0.2.14。
+
+### 真实上游验收（正式 Windows 包）
+
+凭证仅保存在仓库外的临时文件（仅当前用户可读），验收结束后删除。测试 CPA 经日本出口代理（香港出口下 Claude 模型返回 403，见下节）。以正式包内动态库（SHA-256 `e0519cfa…f895e3`）运行兼容探测，在 CPA **v8.0.23** 与 **v8.0.59** 上各 10 次请求、全部 200，宿主 `/status` 报告 0.2.14：
+
+- sonnet-5-5 `(none)`：原生 Messages 首次与再次、Chat 客户端、重启后流式均记录 `thinking_off_unsupported:adaptive_low`、`reasoning_to=low`，回复无推理内容。v8.0.59 由宿主剥离后缀再注入等级，插件仍正确改写，**补上了付费模型在 v8.0.59 上未复测的空缺（仅限这两个 Claude 模型）**。
+- sonnet-5-5 强制工具 `tool`／`any`／Chat `required`、重启后流式：均记录 `forced_tool_choice_unsupported:auto`，模型调用 `read_file` 且参数正确（Chat 客户端 1 个 `tool_calls`）。
+- haiku-5-5 `(none)` 与强制工具：无调整。重启后统计 10／10 成功、均有用量。
+
 ## v0.2.14 合并前真实上游复测（2026-11-08）
 
 使用 PR #18 head `dbb2fc4` 在 WSL 交叉编译的 Windows 动态库（版本号仍为 0.2.13，源码与发版仅差版本号和文档），宿主 CPA v8.0.23；凭证只放在仓库外的临时文件中，用后删除。
