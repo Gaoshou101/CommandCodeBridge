@@ -40,6 +40,7 @@ type LogEntry struct {
 	ProviderSource                     string     `json:"provider_source"`
 	ReasoningFrom                      string     `json:"reasoning_from"`
 	ReasoningTo                        string     `json:"reasoning_to"`
+	Adjustments                        []string   `json:"adjustments,omitempty"`
 	StreamEnd                          string     `json:"stream_end"`
 	UpstreamSkipped                    bool       `json:"upstream_skipped"`
 	RetryAt                            *time.Time `json:"retry_at,omitempty"`

@@ -1,5 +1,17 @@
 # 开发验证记录
 
+## 真实验收发现的兼容修复（2026-11-08，未发布源码）
+
+针对下方付费验收发现的三个问题：
+
+- **`model(none)` 与 sonnet-5-5**：插件识别上游“改用 `between_tools`”的 400，改为自适应思考 + `effort=low` 重试一次，日志 `adjustments` 记录 `thinking_off_unsupported:adaptive_low`，`reasoning_to` 记为 `low`。依据：实测自适应低强度下 sonnet-5-5 对简单题不思考（见下方思考等级表）；`between_tools` 被 CommandCode 校验拒绝，无法使用。
+- **强制工具选择与 sonnet-5-5**：识别 `tool_choice` “not supported” 的 400，改为 `auto`（保留工具列表与 `disable_parallel_tool_use`）重试一次，记录 `forced_tool_choice_unsupported:auto`。依据：实测 `auto` 在明确要求时会调用该工具。
+- 两项只作用于 Messages 协议模型和上述上游 400；重试在任何输出之前，统计计为一次请求。重试被接受后本进程内记住该模型，后续请求直接改写；重启或改 `base_url` 后重新探测；重试仍失败时不记住。
+- **默认超时**：`timeout_seconds` 默认改为 1800（grok-4.7 实测 658 秒）。已保存过设置的实例仍使用 `settings.json` 中的值，需手动修改；未做自动迁移，以免覆盖用户有意设置的 600。
+- **验收脚本**：`commandcode_live.py` 的 thinking 用例改用计数题 + `effort=high`，新增 `--thinking-off` 与 `--request-timeout`，逐请求记录兼容调整。
+
+本地验证（Windows Go 1.27.2 + WSL Linux）：新增 8 个 Go 单元测试覆盖重试、记住与重启遗忘、失败不记住、其他错误不重试、两项同时发生（流式）、Chat 协议不受影响和默认超时；`go test -race ./...`（WSL Linux）、`go vet`、gofmt、Node 32 项、Prettier 检查通过。`cpa_round2.py` 新增模拟 sonnet-5-5 拒绝的端到端用例。WSL 交叉编译的 Windows 动态库在 CPA v8.0.23 与 v8.0.59 上跑完 9 项宿主联测（含 v0.2.12 → 新库热升级），18/18 通过；新用例中 5 次客户端请求对应 2 次上游拒绝与重试，统计与 CPA 用量队列均计 5 次。真实上游复测待额度重置（2026-11-08T08:30Z）后进行，**尚未验证**。
+
 ## 付费推理模型真实验收（2026-11-08，v0.2.13 正式包）
 
 用户授权使用付费模型、预算不设上限。全部使用 v0.2.13 正式 Windows 动态库，宿主以 CPA v8.0.23 为主；凭证仍只放在仓库外的临时文件中，用后删除。账户为 GOAT 套餐，本轮最后一次请求触发 **5 小时用量上限**（429），随即停止付费请求。超出预期的消耗主要来自长上下文用例：填充文本实际为 57 万（Claude）／31 万（GPT）tokens，远大于预估。

@@ -199,7 +199,8 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 | 无法加载库 | CPA 是否含插件支持；CPU/系统/运行库是否匹配；文件是否可读 |
 | 模型可见但返回 403 | 目录不保证套餐权限，检查 `MODEL_NOT_IN_PLAN` |
 | 接口直连失败或超时 | 确认 CPA 全局代理；插件不继承 Windows 系统代理 |
-| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭。实测 Claude／GPT 思考期间不发送数据，首字节即思考时长（难题或 57 万 tokens 上下文约 12～25 秒），grok-4.7 高等级出现过 58 秒段间间隔；启用时建议两项均 ≥120 秒。grok-4.7 等长推理可超过默认 `timeout_seconds: 600`（实测 658 秒），需要时提高到 1200～1800 |
+| 上游长时间无响应才报 504 | 可在设置页启用「首字节超时」和「流空闲超时」（`first_byte_timeout_seconds`、`stream_idle_timeout_seconds`，0 为关闭，启用时 5–1800 秒）。日志的错误类型分别为 `upstream_first_byte_timeout`、`upstream_stream_idle_timeout`；默认关闭。实测 Claude／GPT 思考期间不发送数据，首字节即思考时长（难题或 57 万 tokens 上下文约 12～25 秒），grok-4.7 高等级出现过 58 秒段间间隔；启用时建议两项均 ≥120 秒。grok-4.7 等长推理可超过 600 秒（实测 658 秒）。`timeout_seconds` 默认值自 v0.2.14 起为 1800；此前保存过设置的实例仍是 `settings.json` 中的旧值（通常 600），需在「设置 → 请求策略 → 请求超时」手动提高 |
+| `model(none)` 或强制工具选择的请求日志显示「兼容调整」 | 部分 Claude 模型（实测 `claude-sonnet-5-5`）经 CommandCode 不能关闭思考，也不支持 `tool_choice` 为 `tool`／`any`。插件把上游的 400 改为自适应低强度思考或 `auto` 后重试一次，在日志 `adjustments` 中记录，并在本进程内记住该模型；重启或改 `base_url` 后重新探测 |
 | 用量缺失 | 查看 `unavailable` / `status`；查询失败保留旧值 |
 | 日志写入失败 | 检查 data_dir 的磁盘空间、权限及 `storage_error` |
 | 重启后设置未按 YAML 改变 | 已存 settings.json 优先；采用明确的迁移方案 |
@@ -249,7 +250,7 @@ Windows 使用 `Get-FileHash -Algorithm SHA256`，macOS 使用 `shasum -a 256`�
 本轮没有真实账号调用。可先运行无网络预览：
 
 ```sh
-python tests/commandcode_live.py --dry-run --generate --chat-model YOUR_CHAT_MODEL --messages-model YOUR_CLAUDE_MODEL --tools --image --thinking --thinking-mode adaptive --zdr --max-requests 13 --max-tokens 2048
+python tests/commandcode_live.py --dry-run --generate --chat-model YOUR_CHAT_MODEL --messages-model YOUR_CLAUDE_MODEL --tools --image --thinking --thinking-off --thinking-mode adaptive --zdr --max-requests 14 --max-tokens 2048
 ```
 
-实际执行需要仓库外 JSON 凭据文件（`api_key`）、CPA／动态库环境变量及明确允许的模型和请求预算，再去掉 `--dry-run` 并添加 `--credential-file`、`--report`。可分组降低预算；所有组合最多 13 次，本脚本硬限制最多 20 次、每次至多 8192 输出 tokens。实际收费规则以上游为准；ZDR 请求被接受也不能证明服务端保留策略。个人／组织与多 key 的共享身份仍待真实验收，因此采样保持逐凭据隔离。
+实际执行需要仓库外 JSON 凭据文件（`api_key`）、CPA／动态库环境变量及明确允许的模型和请求预算，再去掉 `--dry-run` 并添加 `--credential-file`、`--report`。可分组降低预算；所有组合最多 14 次，`--request-timeout` 默认每次 300 秒（10–1800）。thinking 用例使用需要推理的计数题，`--thinking-off` 发送 `model(none)`；报告逐项列出插件的兼容调整（如强制工具选择改为 `auto`），出现预期外的调整即失败。本脚本硬限制最多 20 次、每次至多 8192 输出 tokens。实际收费规则以上游为准；ZDR 请求被接受也不能证明服务端保留策略。个人／组织与多 key 的共享身份仍待真实验收，因此采样保持逐凭据隔离。

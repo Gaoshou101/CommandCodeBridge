@@ -30,6 +30,15 @@ test('request drawer escapes long errors and only renders approved metadata fiel
  for(const visible of ['路由与协议','时延与用量','权限拒绝','long-error','缓存写入 tokens']) assert.ok(html.includes(visible));
  assert.ok(!html.includes('<dd>100</dd>'));
 });
+test('request drawer names compatibility adjustments and escapes unknown ones', () => {
+ const c = functions('function logPresentation(', 'async function loadLogs()', {esc:escape,fmt:String,when:String,latencyHTML:()=>''});
+ const adjusted = c.logDetailHTML({id:'r',model:'alias(none)',status:200,reasoning_from:'none',reasoning_to:'low',adjustments:['thinking_off_unsupported:adaptive_low','forced_tool_choice_unsupported:auto','<unknown>']});
+ assert.ok(adjusted.includes('<dt>兼容调整</dt><dd>模型不支持关闭思考，已改为自适应低强度；模型不支持强制工具选择，已改为 auto；&#60;unknown&#62;</dd>'));
+ assert.ok(!adjusted.includes('<unknown>'));
+ const plain = c.logDetailHTML({id:'r',model:'alias',status:200});
+ assert.ok(plain.includes('<dt>兼容调整</dt><dd>无</dd>'));
+ assert.equal(c.logAdjustments({adjustments:'not-a-list'}), '无');
+});
 function logs(api) {
  const nodes = new Map();
  const c = {state:{authenticated:true,key:'one',offset:0,logs:[{id:'cached'}]},api,URLSearchParams,fmt:String,diagnosticIdentity:()=>c.state.key,logHTML:x=>x.id,

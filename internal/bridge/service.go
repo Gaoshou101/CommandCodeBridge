@@ -52,6 +52,7 @@ type Service struct {
 	probes                          map[string]bool
 	logins                          map[string]*loginSession
 	expectedRegistration            map[string]time.Time
+	anthropicLimits                 anthropicLimits
 }
 
 func NewService() *Service {
@@ -432,6 +433,7 @@ func (s *Service) saveConfig(c Config) error {
 	s.nextCompaction = time.Time{}
 	s.compactStatisticsLocked(time.Now().UTC())
 	if c.BaseURL != old.BaseURL {
+		s.anthropicLimits.reset()
 		s.usage = map[string]*usageCache{}
 		s.accounts = map[string]string{}
 		s.cooldown = map[string]time.Time{}

@@ -136,7 +136,7 @@ type Config struct {
 }
 
 func defaultConfig() Config {
-	return Config{DataDir: "plugins/commandcodebridge-data", BaseURL: "https://api.commandcode.ai", Models: []Model{}, TimeoutSeconds: 600, LogRetention: 1000, MaxResponseBytes: 16 << 20, UsageRefreshSeconds: 60}
+	return Config{DataDir: "plugins/commandcodebridge-data", BaseURL: "https://api.commandcode.ai", Models: []Model{}, TimeoutSeconds: 1800, LogRetention: 1000, MaxResponseBytes: 16 << 20, UsageRefreshSeconds: 60}
 }
 
 var efforts = map[string]bool{"unset": true, "none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true, "ultra": true}

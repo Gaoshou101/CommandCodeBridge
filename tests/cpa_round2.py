@@ -14,6 +14,10 @@ from cpa_harness import API, CPAHost, chat_body, chat_model
 class EvidenceUpstream(MockUpstream):
     outcomes = {}
     zdr_headers = []
+    # Models that reject disabled thinking and forced tool choice the way
+    # claude-sonnet-5-5 does through CommandCode (2026-11-08 live wording).
+    limited = set()
+    rejections = []
 
     def do_POST(self):
         raw = self.rfile.read(int(self.headers["Content-Length"]))
@@ -27,6 +31,15 @@ class EvidenceUpstream(MockUpstream):
             self.end_headers()
             self.wfile.write(json.dumps({"error": {"code": outcome[1], "message": "fixture error"}}).encode())
             return
+        if body["model"] in self.limited and self.path.endswith("/messages"):
+            message = None
+            if (body.get("thinking") or {}).get("type") == "disabled":
+                message = 'To turn thinking off on this model, send "thinking": {"type": "between_tools"} instead of {"type": "disabled"}.'
+            elif (body.get("tool_choice") or {}).get("type") in ("tool", "any"):
+                message = "tool_choice type is not supported for this model"
+            if message:
+                self.rejections.append(message)
+                return self.send_json({"type": "error", "error": {"type": "invalid_request_error", "message": message}}, 400)
         self.rfile = io.BytesIO(raw)
         super().do_POST()
 
@@ -101,12 +114,30 @@ def run():
         args.credential_file.write_text(json.dumps({"api_key": "fixture-live-runner-key"}))
         with unittest.mock.patch.object(commandcode_live, "CPAHost", side_effect=lambda **_: CPAHost(EvidenceUpstream)):
             report = commandcode_live.run(args)
-    assert report["status"] == "PASS" and report["requests"] == 13
+    assert report["status"] == "PASS" and report["requests"] == 13 and report["adjustments"] == {}
     assert len(EvidenceUpstream.zdr_headers) == 13
     assert all(any(k.lower() == "x-cmd-zdr" and v == "1" for k, v in h.items()) for h in EvidenceUpstream.zdr_headers)
     print(json.dumps({"check": "bounded live runner against mock", "status": "PASS", "requests": 13,
                       "protocols": ["Chat", "Responses", "Messages"], "tools": True, "image_transport": True,
                       "signature_replay": True, "zdr_header": True, "real_requests": 0}), flush=True)
+
+    # A model that rejects disabled thinking and forced tool choice: each request
+    # is retried once with the nearest accepted shape, logged, and counted once.
+    EvidenceUpstream.limited = {"mock-claude"}
+    EvidenceUpstream.rejections = []
+    args = commandcode_live.parser().parse_args(["--generate", "--messages-model", "mock-claude", "--tools", "--thinking-off",
+            "--max-requests", "5", "--max-tokens", "256"])
+    with tempfile.TemporaryDirectory() as folder:
+        args.credential_file = pathlib.Path(folder) / "fixture.json"
+        args.credential_file.write_text(json.dumps({"api_key": "fixture-live-runner-key"}))
+        with unittest.mock.patch.object(commandcode_live, "CPAHost", side_effect=lambda **_: CPAHost(EvidenceUpstream)):
+            report = commandcode_live.run(args)
+    EvidenceUpstream.limited = set()
+    assert report["status"] == "PASS" and report["requests"] == 5, report
+    assert report["adjustments"] == {"forced_tool_choice_unsupported:auto": 1, "thinking_off_unsupported:adaptive_low": 1}, report
+    assert len(EvidenceUpstream.rejections) == 2
+    print(json.dumps({"check": "model limit fallbacks through CPA", "status": "PASS", "requests": 5,
+                      "upstream_rejections_retried": 2, "real_requests": 0}), flush=True)
 
 
 if __name__ == "__main__":
